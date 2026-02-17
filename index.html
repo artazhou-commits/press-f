@@ -236,17 +236,11 @@ resize();
 
 /* ════════════════════════════════════════════
    AUDIO  (Web Audio API — no files needed)
-   Two buses: fxBus (quiet fireworks), muBus (loud music)
+   Two buses: a.destination (quiet fireworks), muBus (loud music)
    ════════════════════════════════════════════ */
-let ac,fxBus,muBus;
+let ac;
 function audio(){
-    if(!ac){
-        ac=new(AudioContext||webkitAudioContext)();
-        fxBus=ac.createGain();fxBus.gain.value=0.12;
-        fxBus.connect(ac.destination);
-        muBus=ac.createGain();muBus.gain.value=1.0;
-        muBus.connect(ac.destination);
-    }
+    if(!ac) ac=new(AudioContext||webkitAudioContext)();
     if(ac.state==='suspended') ac.resume();
     return ac;
 }
@@ -257,7 +251,7 @@ function noise(len,shape){
     return b;
 }
 
-/* mechanical click → fxBus */
+/* mechanical click → a.destination */
 function sndClick(){
     const a=audio(),t=a.currentTime;
     const o1=a.createOscillator(),g1=a.createGain();
@@ -265,17 +259,17 @@ function sndClick(){
     o1.frequency.exponentialRampToValueAtTime(300,t+.015);
     g1.gain.setValueAtTime(.35,t);
     g1.gain.exponentialRampToValueAtTime(.001,t+.035);
-    o1.connect(g1);g1.connect(fxBus);o1.start(t);o1.stop(t+.04);
+    o1.connect(g1);g1.connect(a.destination);o1.start(t);o1.stop(t+.04);
     const o2=a.createOscillator(),g2=a.createGain();
     o2.type='sine';o2.frequency.value=90;
     g2.gain.setValueAtTime(.25,t);
     g2.gain.exponentialRampToValueAtTime(.001,t+.07);
-    o2.connect(g2);g2.connect(fxBus);o2.start(t);o2.stop(t+.08);
+    o2.connect(g2);g2.connect(a.destination);o2.start(t);o2.stop(t+.08);
     const s=a.createBufferSource();
     s.buffer=noise(.025,p=>Math.pow(1-p,5));
     const bp=a.createBiquadFilter();bp.type='bandpass';bp.frequency.value=3500;bp.Q.value=1.5;
     const g3=a.createGain();g3.gain.setValueAtTime(.3,t);
-    s.connect(bp);bp.connect(g3);g3.connect(fxBus);s.start(t);
+    s.connect(bp);bp.connect(g3);g3.connect(a.destination);s.start(t);
 }
 
 function sndLaunch(){
@@ -286,11 +280,11 @@ function sndLaunch(){
     o.frequency.exponentialRampToValueAtTime(1100+Math.random()*500,t+.38);
     g.gain.setValueAtTime(.09,t);
     g.gain.exponentialRampToValueAtTime(.001,t+.38);
-    o.connect(g);g.connect(fxBus);o.start(t);o.stop(t+.4);
+    o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+.4);
     const s=a.createBufferSource();s.buffer=noise(.28,p=>Math.pow(1-p,1.6)*.25);
     const hp=a.createBiquadFilter();hp.type='highpass';hp.frequency.value=2200;
     const g2=a.createGain();g2.gain.setValueAtTime(.06,t);
-    s.connect(hp);hp.connect(g2);g2.connect(fxBus);s.start(t);
+    s.connect(hp);hp.connect(g2);g2.connect(a.destination);s.start(t);
 }
 
 function sndBoom(){
@@ -303,13 +297,13 @@ function sndBoom(){
     const g=a.createGain();
     g.gain.setValueAtTime(.55+Math.random()*.2,t);
     g.gain.exponentialRampToValueAtTime(.001,t+.55);
-    s.connect(lp);lp.connect(g);g.connect(fxBus);s.start(t);
+    s.connect(lp);lp.connect(g);g.connect(a.destination);s.start(t);
     const o=a.createOscillator(),gb=a.createGain();
     o.type='sine';o.frequency.setValueAtTime(60,t);
     o.frequency.exponentialRampToValueAtTime(25,t+.3);
     gb.gain.setValueAtTime(.4,t);
     gb.gain.exponentialRampToValueAtTime(.001,t+.3);
-    o.connect(gb);gb.connect(fxBus);o.start(t);o.stop(t+.35);
+    o.connect(gb);gb.connect(a.destination);o.start(t);o.stop(t+.35);
     setTimeout(sndCrackle,30+Math.random()*70);
 }
 
@@ -320,102 +314,10 @@ function sndCrackle(){
         const s=a.createBufferSource();
         s.buffer=noise(.025+Math.random()*.03,p=>Math.pow(1-p,4));
         const g=a.createGain();g.gain.setValueAtTime(.12+Math.random()*.1,t);
-        s.connect(g);g.connect(fxBus);s.start(t);
+        s.connect(g);g.connect(a.destination);s.start(t);
     },i*(40+Math.random()*100));
 }
 
-/* ════════════════════════════════════════════
-   CHINESE NATIONAL ANTHEM  义勇军进行曲
-   March of the Volunteers — brass synth → muBus
-   ════════════════════════════════════════════ */
-
-function brass(freq,start,dur){
-    const a=audio(),t=start;
-    const o1=a.createOscillator();o1.type='sawtooth';o1.frequency.value=freq;
-    const o2=a.createOscillator();o2.type='square';o2.frequency.value=freq;
-    const flt=a.createBiquadFilter();flt.type='lowpass';flt.frequency.value=1800;flt.Q.value=2;
-    const mg=a.createGain();mg.gain.value=.2;
-    const sg=a.createGain();sg.gain.value=.06;
-    const env=a.createGain();
-    env.gain.setValueAtTime(0,t);
-    env.gain.linearRampToValueAtTime(1,t+.03);
-    env.gain.setValueAtTime(.9,t+dur-.04);
-    env.gain.linearRampToValueAtTime(0,t+dur);
-    o1.connect(mg);o2.connect(sg);mg.connect(flt);sg.connect(flt);
-    flt.connect(env);env.connect(muBus);
-    o1.start(t);o2.start(t);o1.stop(t+dur+.02);o2.stop(t+dur+.02);
-}
-
-let musicOn=false;
-function playMusic(){
-    if(musicOn) return;
-    musicOn=true;
-    const a=audio(),t0=a.currentTime+.1;
-    muBus.gain.cancelScheduledValues(t0);
-    muBus.gain.setValueAtTime(1,t0);
-
-    const Q=60/108; // quarter note at 108 BPM ≈ 0.556s
-    // Note freqs in G major
-    const G3=196,A3=220,B3=246.94,D4=293.66,E4=329.63,Fs4=369.99,G4=392,A4=440;
-
-    // 义勇军进行曲 melody: [freq, startBeat, durationBeats]
-    const m=[
-        // 起来！(pickup)
-        [D4,0,.45],[D4,.5,.45],[D4,1,.45],
-        // 不愿做奴隶的人们！
-        [B3,1.5,1.4],[D4,3,.45],
-        [E4,3.5,1.9],
-        [E4,5.5,.45],[D4,6,.4],[B3,6.5,.4],[D4,7,.45],
-        [A3,7.5,2.4],
-        // 把我们的血肉，筑成我们新的长城！
-        [A3,10,.45],[B3,10.5,.45],
-        [D4,11,.4],[D4,11.5,.4],[D4,12,.4],[E4,12.5,.2],[D4,12.75,.2],
-        [B3,13,1.9],
-        [B3,15,.4],[A3,15.5,.4],[B3,16,.4],[D4,16.5,.45],
-        [G3,17,2.4],
-        // 中华民族到了最危险的时候，
-        [D4,19.5,.45],[D4,20,.45],[D4,20.5,.45],
-        [B3,21,1.4],[D4,22.5,.45],
-        [E4,23,1.9],
-        [E4,25,.45],[D4,25.5,.4],[B3,26,.4],[D4,26.5,.45],
-        [A3,27,1.9],
-        // 每个人被迫着发出最后的吼声！
-        [A3,29,.45],[B3,29.5,.45],
-        [D4,30,.4],[D4,30.5,.4],[E4,31,.4],[D4,31.5,.4],
-        [B3,32,.45],[B3,32.5,.45],
-        [A3,33,.4],[B3,33.5,.4],[D4,34,.45],
-        [G3,34.5,1.4],
-        // 起来！起来！起来！
-        [D4,36,1.9],
-        [D4,38,1.9],
-        [E4,40,1.9],
-        // 我们万众一心，
-        [G4,42,.9],[Fs4,43,.4],[E4,43.5,.4],[D4,44,.9],
-        // 冒着敌人的炮火，前进！
-        [E4,45,.4],[D4,45.5,.4],[E4,46,.9],
-        [A4,47,1.9],
-        // 冒着敌人的炮火，前进！前进！前进 进！
-        [E4,49,.4],[D4,49.5,.4],[E4,50,.9],
-        [A4,51,1.9],
-        [G4,53,1.9],
-        [D4,55,.9],
-        [G4,56,2.9],
-    ];
-
-    m.forEach(([f,b,d])=>brass(f,t0+b*Q,d*Q));
-    // reset after anthem ends
-    const total=(59*Q)*1000;
-    setTimeout(()=>{musicOn=false;},total);
-}
-
-function stopMusic(){
-    if(!muBus) return;
-    musicOn=false;
-    const a=audio(),t=a.currentTime;
-    muBus.gain.cancelScheduledValues(t);
-    muBus.gain.setValueAtTime(muBus.gain.value,t);
-    muBus.gain.linearRampToValueAtTime(0,t+.5);
-}
 
 /* ════════════════════════════════════════════
    F-SHAPE DEFINITION (for shaped bursts)
@@ -621,9 +523,8 @@ function fire(){
     fl.classList.add('on');
     setTimeout(()=>fl.classList.remove('on'),140);
 
-    // click sound + music
+    // click sound
     sndClick();
-    playMusic();
 
     // grander fireworks — 6 waves, more shells
     const W=[
@@ -641,7 +542,7 @@ function fire(){
     // show banner, fade after 10s
     clearTimeout(bannerHide);
     ban.classList.add('show');
-    bannerHide=setTimeout(()=>{ban.classList.remove('show');stopMusic();},10000);
+    bannerHide=setTimeout(()=>ban.classList.remove('show'),10000);
 }
 
 function up(){dome.classList.remove('hit');sh.classList.remove('sm');}
