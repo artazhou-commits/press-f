@@ -222,10 +222,17 @@ resize();
 
 /* ════════════════════════════════════════════
    AUDIO  (Web Audio API — no files needed)
+   Two buses: fxBus (quiet fireworks), muBus (loud music)
    ════════════════════════════════════════════ */
-let ac;
+let ac,fxBus,muBus;
 function audio(){
-    if(!ac) ac=new(AudioContext||webkitAudioContext)();
+    if(!ac){
+        ac=new(AudioContext||webkitAudioContext)();
+        fxBus=ac.createGain();fxBus.gain.value=0.12;
+        fxBus.connect(ac.destination);
+        muBus=ac.createGain();muBus.gain.value=1.0;
+        muBus.connect(ac.destination);
+    }
     if(ac.state==='suspended') ac.resume();
     return ac;
 }
@@ -236,28 +243,25 @@ function noise(len,shape){
     return b;
 }
 
-/* mechanical click */
+/* mechanical click → fxBus */
 function sndClick(){
     const a=audio(),t=a.currentTime;
-    // high transient
     const o1=a.createOscillator(),g1=a.createGain();
     o1.frequency.setValueAtTime(1500,t);
     o1.frequency.exponentialRampToValueAtTime(300,t+.015);
     g1.gain.setValueAtTime(.35,t);
     g1.gain.exponentialRampToValueAtTime(.001,t+.035);
-    o1.connect(g1);g1.connect(a.destination);o1.start(t);o1.stop(t+.04);
-    // low thump
+    o1.connect(g1);g1.connect(fxBus);o1.start(t);o1.stop(t+.04);
     const o2=a.createOscillator(),g2=a.createGain();
     o2.type='sine';o2.frequency.value=90;
     g2.gain.setValueAtTime(.25,t);
     g2.gain.exponentialRampToValueAtTime(.001,t+.07);
-    o2.connect(g2);g2.connect(a.destination);o2.start(t);o2.stop(t+.08);
-    // noise snap
+    o2.connect(g2);g2.connect(fxBus);o2.start(t);o2.stop(t+.08);
     const s=a.createBufferSource();
     s.buffer=noise(.025,p=>Math.pow(1-p,5));
     const bp=a.createBiquadFilter();bp.type='bandpass';bp.frequency.value=3500;bp.Q.value=1.5;
     const g3=a.createGain();g3.gain.setValueAtTime(.3,t);
-    s.connect(bp);bp.connect(g3);g3.connect(a.destination);s.start(t);
+    s.connect(bp);bp.connect(g3);g3.connect(fxBus);s.start(t);
 }
 
 function sndLaunch(){
@@ -268,16 +272,15 @@ function sndLaunch(){
     o.frequency.exponentialRampToValueAtTime(1100+Math.random()*500,t+.38);
     g.gain.setValueAtTime(.09,t);
     g.gain.exponentialRampToValueAtTime(.001,t+.38);
-    o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+.4);
+    o.connect(g);g.connect(fxBus);o.start(t);o.stop(t+.4);
     const s=a.createBufferSource();s.buffer=noise(.28,p=>Math.pow(1-p,1.6)*.25);
     const hp=a.createBiquadFilter();hp.type='highpass';hp.frequency.value=2200;
     const g2=a.createGain();g2.gain.setValueAtTime(.06,t);
-    s.connect(hp);hp.connect(g2);g2.connect(a.destination);s.start(t);
+    s.connect(hp);hp.connect(g2);g2.connect(fxBus);s.start(t);
 }
 
 function sndBoom(){
     const a=audio(),t=a.currentTime;
-    // main boom — louder
     const s=a.createBufferSource();
     s.buffer=noise(.55,p=>Math.pow(1-p,1.2));
     const lp=a.createBiquadFilter();lp.type='lowpass';
@@ -286,14 +289,13 @@ function sndBoom(){
     const g=a.createGain();
     g.gain.setValueAtTime(.55+Math.random()*.2,t);
     g.gain.exponentialRampToValueAtTime(.001,t+.55);
-    s.connect(lp);lp.connect(g);g.connect(a.destination);s.start(t);
-    // sub bass thump
+    s.connect(lp);lp.connect(g);g.connect(fxBus);s.start(t);
     const o=a.createOscillator(),gb=a.createGain();
     o.type='sine';o.frequency.setValueAtTime(60,t);
     o.frequency.exponentialRampToValueAtTime(25,t+.3);
     gb.gain.setValueAtTime(.4,t);
     gb.gain.exponentialRampToValueAtTime(.001,t+.3);
-    o.connect(gb);gb.connect(a.destination);o.start(t);o.stop(t+.35);
+    o.connect(gb);gb.connect(fxBus);o.start(t);o.stop(t+.35);
     setTimeout(sndCrackle,30+Math.random()*70);
 }
 
@@ -304,8 +306,119 @@ function sndCrackle(){
         const s=a.createBufferSource();
         s.buffer=noise(.025+Math.random()*.03,p=>Math.pow(1-p,4));
         const g=a.createGain();g.gain.setValueAtTime(.12+Math.random()*.1,t);
-        s.connect(g);g.connect(a.destination);s.start(t);
+        s.connect(g);g.connect(fxBus);s.start(t);
     },i*(40+Math.random()*100));
+}
+
+/* ════════════════════════════════════════════
+   CHINESE INSTRUMENTAL MUSIC (synthesized)
+   Erhu melody + guzheng plucks in A minor pentatonic (Yu mode)
+   ════════════════════════════════════════════ */
+let musicOn=false;
+
+/* erhu — sawtooth + vibrato + filter → muBus */
+function erhu(freq,start,dur){
+    const a=audio(),t=start;
+    const osc=a.createOscillator();osc.type='sawtooth';
+    osc.frequency.setValueAtTime(freq,t);
+    // vibrato
+    const lfo=a.createOscillator(),ld=a.createGain();
+    lfo.frequency.value=5.5;ld.gain.value=freq*.018;
+    lfo.connect(ld);ld.connect(osc.frequency);
+    // portamento slides
+    osc.frequency.setValueAtTime(freq*.985,t);
+    osc.frequency.linearRampToValueAtTime(freq,t+.12);
+    // filter
+    const flt=a.createBiquadFilter();flt.type='lowpass';
+    flt.frequency.value=1600;flt.Q.value=2.5;
+    // envelope
+    const env=a.createGain();
+    const atk=Math.min(.15,dur*.15);
+    env.gain.setValueAtTime(0,t);
+    env.gain.linearRampToValueAtTime(.28,t+atk);
+    env.gain.setValueAtTime(.28,t+dur-.35);
+    env.gain.linearRampToValueAtTime(0,t+dur);
+    osc.connect(flt);flt.connect(env);env.connect(muBus);
+    osc.start(t);lfo.start(t);osc.stop(t+dur+.01);lfo.stop(t+dur+.01);
+}
+
+/* guzheng pluck — triangle + harmonics + attack noise → muBus */
+function guzheng(freq,start){
+    const a=audio(),t=start;
+    const o1=a.createOscillator();o1.type='triangle';o1.frequency.value=freq;
+    const o2=a.createOscillator();o2.type='sine';o2.frequency.value=freq*2;
+    const o3=a.createOscillator();o3.type='sine';o3.frequency.value=freq*3;
+    const g1=a.createGain();g1.gain.setValueAtTime(.18,t);g1.gain.exponentialRampToValueAtTime(.001,t+2.5);
+    const g2=a.createGain();g2.gain.setValueAtTime(.06,t);g2.gain.exponentialRampToValueAtTime(.001,t+1.5);
+    const g3=a.createGain();g3.gain.setValueAtTime(.025,t);g3.gain.exponentialRampToValueAtTime(.001,t+.8);
+    o1.connect(g1);g1.connect(muBus);
+    o2.connect(g2);g2.connect(muBus);
+    o3.connect(g3);g3.connect(muBus);
+    o1.start(t);o2.start(t);o3.start(t);
+    o1.stop(t+3);o2.stop(t+2);o3.stop(t+1);
+    // pluck noise
+    const ns=a.createBufferSource();ns.buffer=noise(.015,p=>Math.pow(1-p,4));
+    const ng=a.createGain();ng.gain.setValueAtTime(.07,t);
+    const hp=a.createBiquadFilter();hp.type='highpass';hp.frequency.value=1500;
+    ns.connect(hp);hp.connect(ng);ng.connect(muBus);ns.start(t);
+}
+
+/* drone pad for atmosphere → muBus */
+function drone(freq,start,dur){
+    const a=audio(),t=start;
+    const o=a.createOscillator();o.type='sine';o.frequency.value=freq;
+    const o2=a.createOscillator();o2.type='sine';o2.frequency.value=freq*1.002;// slight detune
+    const flt=a.createBiquadFilter();flt.type='lowpass';flt.frequency.value=600;
+    const g=a.createGain();
+    g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(.06,t+2);
+    g.gain.setValueAtTime(.06,t+dur-3);
+    g.gain.linearRampToValueAtTime(0,t+dur);
+    o.connect(flt);o2.connect(flt);flt.connect(g);g.connect(muBus);
+    o.start(t);o2.start(t);o.stop(t+dur+.1);o2.stop(t+dur+.1);
+}
+
+function playMusic(){
+    if(musicOn) return;
+    musicOn=true;
+    const a=audio(),t0=a.currentTime+.15;
+    const B=60/52; // ~1.15s per beat at 52 BPM
+
+    // Note frequencies (A minor pentatonic / Yu mode)
+    const A3=220,C4=261.63,D4=293.66,E4=329.63,G3=196,G4=392,A4=440,E3=164.81;
+
+    // ── erhu melody: [freq, startBeat, durationBeats] ──
+    const mel=[
+        [E4,0,3],[D4,3.5,2],[C4,6,3.5],
+        [A3,10.5,2.5],[C4,13.5,1.5],[D4,15.5,2.5],[C4,18.5,2],[A3,21,4],
+        [E4,26,2],[G4,28.5,3.5],[E4,32.5,2],[D4,35,3.5],
+        [C4,39.5,2.5],[D4,42.5,1.5],[C4,44.5,2.5],[A3,47.5,5],
+    ];
+    mel.forEach(([f,b,d])=>erhu(f,t0+b*B,d*B));
+
+    // ── guzheng accompaniment: [freq, startBeat] ──
+    const gz=[
+        [A3,0],[E4,.6],
+        [A3,6],[C4,6.5],
+        [E3,10.5],[A3,10.9],
+        [C4,13.5],[A3,13.9],
+        [E3,21],[A3,21.4],
+        [G3,26],[E4,26.5],
+        [A3,28.5],[C4,28.9],
+        [A3,32.5],[D4,32.9],
+        [A3,35],[G3,35.4],
+        [A3,39.5],[E4,39.9],
+        [C4,42.5],[A3,42.9],
+        [E3,47.5],[A3,47.9],[E4,48.3],
+    ];
+    gz.forEach(([f,b])=>guzheng(f,t0+b*B));
+
+    // ── low drone on A2/E3 ──
+    drone(110,t0,53*B);
+    drone(E3,t0+10*B,43*B);
+
+    const total=53*B*1000;
+    setTimeout(()=>{musicOn=false;},total);
 }
 
 /* ════════════════════════════════════════════
@@ -513,8 +626,9 @@ function fire(){
     fl.classList.add('on');
     setTimeout(()=>fl.classList.remove('on'),140);
 
-    // click sound immediately
+    // click sound + music
     sndClick();
+    playMusic();
 
     // grander fireworks — 6 waves, more shells
     const W=[
