@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Press F to Pay Respects</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&display=swap" rel="stylesheet">
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+
+        html,body{
+            width:100%;height:100%;overflow:hidden;
+            background:#060608;
+            -webkit-tap-highlight-color:transparent;
+            -webkit-touch-callout:none;
+            -webkit-user-select:none;user-select:none;
+        }
+
+        body{
+            display:flex;flex-direction:column;
+            align-items:center;justify-content:center;
+            font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+            background:
+                radial-gradient(ellipse 80% 60% at 50% 55%,#12101a 0%,#060608 100%);
+        }
+
+        /* ── canvas ── */
+        #fw{
+            position:fixed;top:0;left:0;width:100%;height:100%;
+            pointer-events:none;z-index:10;
+        }
+
+        /* ── flash overlay ── */
+        .flash{
+            position:fixed;top:0;left:0;width:100%;height:100%;
+            background:radial-gradient(circle at 50% 50%,rgba(255,200,100,.18) 0%,transparent 55%);
+            pointer-events:none;z-index:4;opacity:0;
+            transition:opacity .06s ease;
+        }
+        .flash.on{opacity:1}
+
+        /* ── layout ── */
+        .content{
+            display:flex;flex-direction:column;
+            align-items:center;gap:32px;z-index:5;
+        }
+
+        /* ── button ── */
+        .btn-wrap{position:relative;perspective:700px}
+
+        .btn-shadow{
+            position:absolute;bottom:-12px;left:50%;
+            transform:translateX(-50%);
+            width:230px;height:28px;
+            background:radial-gradient(ellipse,rgba(0,0,0,.65) 0%,transparent 70%);
+            border-radius:50%;transition:all .1s ease;
+        }
+        .btn-shadow.sm{width:210px;height:20px;bottom:-8px;opacity:.7}
+
+        .btn-base{
+            width:270px;height:270px;border-radius:50%;
+            background:linear-gradient(180deg,#262628 0%,#1a1a1d 40%,#101012 100%);
+            display:flex;align-items:center;justify-content:center;
+            box-shadow:
+                0 5px 0 #000,
+                0 8px 18px rgba(0,0,0,.85),
+                inset 0 2px 1px rgba(255,255,255,.04),
+                inset 0 -3px 6px rgba(0,0,0,.6);
+        }
+
+        .btn-rim{
+            width:240px;height:240px;border-radius:50%;
+            background:linear-gradient(180deg,#18181a,#0c0c0e);
+            display:flex;align-items:center;justify-content:center;
+            box-shadow:inset 0 3px 7px rgba(0,0,0,.9);
+        }
+
+        .btn-dome{
+            width:206px;height:206px;border-radius:50%;
+            background:
+                radial-gradient(circle at 37% 30%,#ff6b6b 0%,#e63946 22%,#c1121f 48%,#9b0000 78%,#780000 100%);
+            display:flex;align-items:center;justify-content:center;
+            cursor:pointer;
+            will-change:transform,box-shadow;
+            touch-action:manipulation;
+            transition:transform .08s ease,box-shadow .08s ease,background .08s ease;
+            position:relative;
+            transform:translateY(0);
+            box-shadow:
+                0 9px 0 #5c0000,
+                0 12px 22px rgba(0,0,0,.55),
+                inset 0 -7px 14px rgba(0,0,0,.38),
+                inset 0 5px 10px rgba(255,255,255,.16);
+        }
+
+        /* gloss highlight */
+        .btn-dome::after{
+            content:'';position:absolute;
+            top:13%;left:23%;width:36%;height:24%;
+            border-radius:50%;
+            background:radial-gradient(ellipse,rgba(255,255,255,.28) 0%,transparent 100%);
+            transform:rotate(-18deg);
+            transition:opacity .08s ease;
+        }
+
+        /* pressed state */
+        .btn-dome.hit{
+            transform:translateY(7px);
+            background:
+                radial-gradient(circle at 42% 38%,#ff5252 0%,#d62839 22%,#a4161a 48%,#800000 78%,#660000 100%);
+            box-shadow:
+                0 2px 0 #5c0000,
+                0 3px 8px rgba(0,0,0,.55),
+                inset 0 -3px 8px rgba(0,0,0,.4),
+                inset 0 2px 5px rgba(255,255,255,.1);
+        }
+        .btn-dome.hit::after{opacity:.45}
+
+        /* idle pulse */
+        @keyframes glow{
+            0%,100%{filter:drop-shadow(0 0 0 transparent)}
+            50%{filter:drop-shadow(0 0 22px rgba(230,57,70,.35))}
+        }
+        .btn-dome:not(.hit){animation:glow 3s ease-in-out infinite}
+
+        .f{
+            font-family:'Cinzel',Georgia,serif;
+            font-size:86px;font-weight:900;
+            color:#fff;
+            text-shadow:0 2px 6px rgba(0,0,0,.35);
+            line-height:1;position:relative;z-index:1;
+        }
+
+        .sub{
+            color:rgba(255,255,255,.25);
+            font-size:13px;letter-spacing:4px;
+            text-transform:uppercase;font-weight:300;
+        }
+
+        /* ── banner ── */
+        .banner{
+            position:fixed;top:0;left:0;width:100%;height:100%;
+            display:flex;align-items:center;justify-content:center;
+            z-index:20;pointer-events:none;
+            opacity:0;transition:opacity .9s ease;
+        }
+        .banner.show{opacity:1}
+
+        .banner-box{
+            text-align:center;
+            padding:28px 52px;
+            background:linear-gradient(180deg,rgba(6,6,8,.82),rgba(6,6,8,.65));
+            border-top:2px solid rgba(212,175,55,.45);
+            border-bottom:2px solid rgba(212,175,55,.45);
+            backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+        }
+
+        .banner-txt{
+            font-family:'Cinzel',Georgia,serif;
+            font-size:clamp(26px,5.8vw,54px);
+            font-weight:900;
+            color:#d4af37;
+            text-shadow:
+                0 0 22px rgba(212,175,55,.5),
+                0 0 44px rgba(212,175,55,.18);
+            letter-spacing:3px;line-height:1.35;
+        }
+
+        /* ── mobile ── */
+        @media(max-width:480px){
+            .btn-base{width:230px;height:230px}
+            .btn-rim{width:204px;height:204px}
+            .btn-dome{width:174px;height:174px}
+            .btn-shadow{width:195px}
+            .f{font-size:68px}
+            .sub{font-size:11px;letter-spacing:3px}
+            .banner-box{padding:20px 28px}
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="fw"></canvas>
+<div class="flash" id="flash"></div>
+
+<div class="content">
+    <div class="btn-wrap">
+        <div class="btn-shadow" id="shadow"></div>
+        <div class="btn-base">
+            <div class="btn-rim">
+                <div class="btn-dome" id="dome">
+                    <span class="f">F</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <p class="sub">Press F to Pay Respects</p>
+</div>
+
+<div class="banner" id="banner">
+    <div class="banner-box">
+        <div class="banner-txt">RIP Justin (Zhiyi) Kuang</div>
+    </div>
+</div>
+
+<script>
+/* ════════════════════════════════════════════
+   CANVAS
+   ════════════════════════════════════════════ */
+const C = document.getElementById('fw');
+const X = C.getContext('2d');
+function resize(){C.width=innerWidth;C.height=innerHeight}
+addEventListener('resize',resize);resize();
+
+/* ════════════════════════════════════════════
+   AUDIO  (Web Audio API — no files needed)
+   ════════════════════════════════════════════ */
+let ac;
+function audio(){
+    if(!ac) ac=new(AudioContext||webkitAudioContext)();
+    if(ac.state==='suspended') ac.resume();
+    return ac;
+}
+
+function noise(len,shape){
+    const a=audio(),b=a.createBuffer(1,a.sampleRate*len,a.sampleRate),d=b.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*shape(i/d.length);
+    return b;
+}
+
+function sndLaunch(){
+    const a=audio(),t=a.currentTime;
+    // whistle
+    const o=a.createOscillator(),g=a.createGain();
+    o.type='sine';
+    o.frequency.setValueAtTime(280+Math.random()*80,t);
+    o.frequency.exponentialRampToValueAtTime(1100+Math.random()*500,t+.38);
+    g.gain.setValueAtTime(.055,t);
+    g.gain.exponentialRampToValueAtTime(.001,t+.38);
+    o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+.4);
+    // hiss
+    const s=a.createBufferSource();s.buffer=noise(.28,p=>Math.pow(1-p,1.6)*.25);
+    const hp=a.createBiquadFilter();hp.type='highpass';hp.frequency.value=2200;
+    const g2=a.createGain();g2.gain.setValueAtTime(.035,t);
+    s.connect(hp);hp.connect(g2);g2.connect(a.destination);s.start(t);
+}
+
+function sndBoom(){
+    const a=audio(),t=a.currentTime;
+    const s=a.createBufferSource();
+    s.buffer=noise(.45,p=>Math.pow(1-p,1.4));
+    const lp=a.createBiquadFilter();lp.type='lowpass';
+    lp.frequency.setValueAtTime(900,t);
+    lp.frequency.exponentialRampToValueAtTime(70,t+.4);
+    const g=a.createGain();
+    g.gain.setValueAtTime(.3+Math.random()*.15,t);
+    g.gain.exponentialRampToValueAtTime(.001,t+.45);
+    s.connect(lp);lp.connect(g);g.connect(a.destination);s.start(t);
+    setTimeout(sndCrackle,40+Math.random()*90);
+}
+
+function sndCrackle(){
+    const a=audio(),n=3+Math.floor(Math.random()*5);
+    for(let i=0;i<n;i++) setTimeout(()=>{
+        const t=a.currentTime;
+        const s=a.createBufferSource();
+        s.buffer=noise(.02+Math.random()*.025,p=>Math.pow(1-p,4));
+        const g=a.createGain();g.gain.setValueAtTime(.07+Math.random()*.06,t);
+        s.connect(g);g.connect(a.destination);s.start(t);
+    },i*(55+Math.random()*110));
+}
+
+/* ════════════════════════════════════════════
+   FIREWORKS ENGINE
+   ════════════════════════════════════════════ */
+const shells=[], pts=[];
+
+const PAL=[
+    [255,70,70],[70,160,255],[255,200,50],[70,255,120],
+    [200,70,255],[255,120,200],[255,255,235],[255,140,50],
+    [100,255,255],[255,80,140]
+];
+const rPal=()=>PAL[Math.random()*PAL.length|0];
+
+class Shell{
+    constructor(){
+        this.x=C.width*(.15+Math.random()*.7);
+        this.y=C.height+4;
+        this.ty=C.height*(.08+Math.random()*.3);
+        this.vy=-(10+Math.random()*5);
+        this.vx=(Math.random()-.5)*2;
+        this.col=rPal();this.trail=[];this.ok=true;
+    }
+    tick(){
+        this.trail.push({x:this.x,y:this.y});
+        if(this.trail.length>10)this.trail.shift();
+        this.x+=this.vx;this.y+=this.vy;this.vy+=.15;
+        if(this.y<=this.ty||this.vy>=0){this.boom();this.ok=false;}
+    }
+    draw(){
+        for(let i=0;i<this.trail.length;i++){
+            const t=this.trail[i],a=i/this.trail.length*.4;
+            X.beginPath();X.arc(t.x,t.y,1+a*1.5,0,Math.PI*2);
+            X.fillStyle=`rgba(255,210,140,${a})`;X.fill();
+        }
+        X.beginPath();X.arc(this.x,this.y,2.5,0,Math.PI*2);
+        X.fillStyle='rgba(255,240,200,.9)';X.fill();
+    }
+    boom(){
+        const n=85+Math.random()*70|0;
+        const kind=Math.random();
+        const c2=rPal();
+        sndBoom();
+        for(let i=0;i<n;i++){
+            let ang=Math.random()*Math.PI*2,spd,c;
+            if(kind<.25){spd=2+Math.random()*5.5;c=this.col;}        // chrysanthemum
+            else if(kind<.5){spd=3+Math.random()*3;c=this.col;}      // peony
+            else if(kind<.75){spd=2+Math.random()*5;c=Math.random()>.5?this.col:c2;} // bicolor
+            else{ang=(i/n)*Math.PI*2+(Math.random()-.5)*.14;spd=3.5+Math.random()*1.5;c=this.col;} // ring
+            pts.push({
+                x:this.x,y:this.y,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,
+                life:1,decay:.005+Math.random()*.013,col:c,
+                sz:1.2+Math.random()*2,g:.022+Math.random()*.016,
+                fr:.984+Math.random()*.012,tw:Math.random()>.72,trail:[]
+            });
+        }
+        // glitter core
+        for(let i=0;i<14;i++){
+            const a=Math.random()*Math.PI*2,s=.4+Math.random()*.8;
+            pts.push({
+                x:this.x,y:this.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,
+                life:1,decay:.018+Math.random()*.02,col:[255,255,220],
+                sz:.5+Math.random(),g:.01,fr:.99,tw:true,trail:[]
+            });
+        }
+    }
+}
+
+/* render loop */
+(function loop(){
+    requestAnimationFrame(loop);
+    X.fillStyle='rgba(6,6,8,.14)';
+    X.fillRect(0,0,C.width,C.height);
+
+    for(let i=shells.length;i--;){
+        shells[i].tick();shells[i].draw();
+        if(!shells[i].ok) shells.splice(i,1);
+    }
+    for(let i=pts.length;i--;){
+        const p=pts[i];
+        p.trail.push({x:p.x,y:p.y});
+        if(p.trail.length>5)p.trail.shift();
+        p.x+=p.vx;p.y+=p.vy;p.vy+=p.g;p.vx*=p.fr;p.vy*=p.fr;
+        p.life-=p.decay;
+        if(p.life<=0){pts.splice(i,1);continue;}
+        const[r,g,b]=p.col;
+        let v=1;if(p.tw&&Math.random()>.7)v=.25;
+        // trail
+        for(let j=0;j<p.trail.length;j++){
+            const t=p.trail[j],ta=j/p.trail.length*p.life*.3*v;
+            X.beginPath();X.arc(t.x,t.y,p.sz*.45*p.life,0,Math.PI*2);
+            X.fillStyle=`rgba(${r},${g},${b},${ta})`;X.fill();
+        }
+        // dot
+        const sz=p.sz*Math.max(p.life,.25);
+        X.beginPath();X.arc(p.x,p.y,sz,0,Math.PI*2);
+        X.fillStyle=`rgba(${r},${g},${b},${p.life*v})`;X.fill();
+        // glow
+        X.beginPath();X.arc(p.x,p.y,sz*2.8,0,Math.PI*2);
+        X.fillStyle=`rgba(${r},${g},${b},${p.life*.1*v})`;X.fill();
+    }
+})();
+
+/* ════════════════════════════════════════════
+   BUTTON
+   ════════════════════════════════════════════ */
+const dome=document.getElementById('dome');
+const ban=document.getElementById('banner');
+const fl=document.getElementById('flash');
+const sh=document.getElementById('shadow');
+let btHide,btFade;
+
+function fire(){
+    dome.classList.add('hit');
+    sh.classList.add('sm');
+    fl.classList.add('on');
+    setTimeout(()=>fl.classList.remove('on'),140);
+
+    const W=[
+        {n:3,d:0,  gap:140},
+        {n:4,d:550,gap:180},
+        {n:3,d:1200,gap:160},
+        {n:5,d:2000,gap:110},
+    ];
+    W.forEach(w=>{for(let i=0;i<w.n;i++)
+        setTimeout(()=>{shells.push(new Shell());sndLaunch();},w.d+i*w.gap);
+    });
+
+    clearTimeout(btHide);clearTimeout(btFade);
+    btHide=setTimeout(()=>ban.classList.add('show'),450);
+    btFade=setTimeout(()=>ban.classList.remove('show'),5500);
+}
+
+function up(){dome.classList.remove('hit');sh.classList.remove('sm');}
+
+dome.addEventListener('pointerdown',e=>{e.preventDefault();fire();});
+dome.addEventListener('pointerup',e=>{e.preventDefault();up();});
+dome.addEventListener('pointerleave',up);
+dome.addEventListener('pointercancel',up);
+dome.addEventListener('contextmenu',e=>e.preventDefault());
+
+/* keyboard: literally "Press F" */
+const held=new Set();
+document.addEventListener('keydown',e=>{
+    if((e.key==='f'||e.key==='F')&&!held.has('f')){held.add('f');fire();}
+});
+document.addEventListener('keyup',e=>{
+    if(e.key==='f'||e.key==='F'){held.delete('f');up();}
+});
+</script>
+</body>
+</html>
