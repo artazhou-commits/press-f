@@ -8,14 +8,15 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
-        *{margin:0;padding:0;box-sizing:border-box}
+        *{margin:0;padding:0;box-sizing:border-box;touch-action:manipulation}
 
         html,body{
-            width:100%;height:100%;overflow:hidden;
+            width:100%;height:100vh;height:100dvh;overflow:hidden;
             background:#060608;
             -webkit-tap-highlight-color:transparent;
             -webkit-touch-callout:none;
             -webkit-user-select:none;user-select:none;
+            overscroll-behavior:none;
         }
 
         body{
@@ -96,7 +97,7 @@
                 inset 0 5px 10px rgba(255,255,255,.16);
         }
 
-        /* gloss highlight */
+        /* gloss highlight — pointer-events:none so it doesn't eat touches */
         .btn-dome::after{
             content:'';position:absolute;
             top:13%;left:23%;width:36%;height:24%;
@@ -104,6 +105,7 @@
             background:radial-gradient(ellipse,rgba(255,255,255,.28) 0%,transparent 100%);
             transform:rotate(-18deg);
             transition:opacity .08s ease;
+            pointer-events:none;
         }
 
         /* pressed state */
@@ -214,7 +216,9 @@
 const C = document.getElementById('fw');
 const X = C.getContext('2d');
 function resize(){C.width=innerWidth;C.height=innerHeight}
-addEventListener('resize',resize);resize();
+addEventListener('resize',resize);
+addEventListener('orientationchange',()=>setTimeout(resize,150));
+resize();
 
 /* ════════════════════════════════════════════
    AUDIO  (Web Audio API — no files needed)
@@ -533,9 +537,31 @@ function fire(){
 
 function up(){dome.classList.remove('hit');sh.classList.remove('sm');}
 
-dome.addEventListener('pointerdown',e=>{e.preventDefault();fire();});
-dome.addEventListener('pointerup',e=>{e.preventDefault();up();});
-dome.addEventListener('pointerleave',up);
+/* — init audio on first interaction (iOS requirement) — */
+function warmAudio(){
+    audio();
+    document.removeEventListener('touchstart',warmAudio);
+    document.removeEventListener('pointerdown',warmAudio);
+}
+document.addEventListener('touchstart',warmAudio,{passive:true});
+document.addEventListener('pointerdown',warmAudio,{passive:true});
+
+/* — touch events (primary on mobile) — */
+dome.addEventListener('touchstart',e=>{e.preventDefault();fire();},{passive:false});
+dome.addEventListener('touchend',e=>{e.preventDefault();up();},{passive:false});
+dome.addEventListener('touchcancel',up);
+
+/* — pointer/mouse events (desktop + fallback) — */
+let usingTouch=false;
+dome.addEventListener('pointerdown',e=>{
+    if(e.pointerType==='touch'){usingTouch=true;return;} // handled by touch events
+    e.preventDefault();fire();
+});
+dome.addEventListener('pointerup',e=>{
+    if(usingTouch){usingTouch=false;return;}
+    e.preventDefault();up();
+});
+dome.addEventListener('pointerleave',e=>{if(!usingTouch)up();});
 dome.addEventListener('pointercancel',up);
 dome.addEventListener('contextmenu',e=>e.preventDefault());
 
