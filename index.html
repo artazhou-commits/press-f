@@ -172,7 +172,7 @@
             letter-spacing:3px;line-height:1.35;
         }
 
-        /* ── mobile ── */
+        /* ── mobile portrait ── */
         @media(max-width:480px){
             .btn-base{width:230px;height:230px}
             .btn-rim{width:204px;height:204px}
@@ -181,6 +181,20 @@
             .f{font-size:68px}
             .sub{font-size:11px;letter-spacing:3px}
             .banner-box{padding:20px 28px}
+        }
+
+        /* ── mobile landscape — shrink everything so banner + button don't overlap ── */
+        @media(max-height:500px) and (orientation:landscape){
+            .content{gap:10px}
+            .btn-base{width:150px;height:150px}
+            .btn-rim{width:133px;height:133px}
+            .btn-dome{width:112px;height:112px}
+            .btn-shadow{width:130px;height:18px;bottom:-8px}
+            .f{font-size:44px}
+            .sub{font-size:9px;letter-spacing:2px}
+            .banner{padding-top:4px}
+            .banner-box{padding:8px 20px}
+            .banner-txt{font-size:clamp(14px,3.5vh,24px);letter-spacing:2px}
         }
     </style>
 </head>
@@ -311,61 +325,92 @@ function sndCrackle(){
 }
 
 /* ════════════════════════════════════════════
-   SAD TROMBONE  "wah wah waaaaaah" → muBus
+   CHINESE NATIONAL ANTHEM  义勇军进行曲
+   March of the Volunteers — brass synth → muBus
    ════════════════════════════════════════════ */
-let muGain=null; // master music gain for fade-out
 
-function trombone(freq,start,dur,slide,vib){
+function brass(freq,start,dur){
     const a=audio(),t=start;
-    // sawtooth + square mix for brassy timbre
-    const o1=a.createOscillator();o1.type='sawtooth';o1.frequency.setValueAtTime(freq,t);
-    const o2=a.createOscillator();o2.type='square';o2.frequency.setValueAtTime(freq,t);
-    if(slide){
-        o1.frequency.setValueAtTime(freq,t+dur*.15);
-        o1.frequency.linearRampToValueAtTime(slide,t+dur);
-        o2.frequency.setValueAtTime(freq,t+dur*.15);
-        o2.frequency.linearRampToValueAtTime(slide,t+dur);
-    }
-    // vibrato on long notes
-    if(vib){
-        const lfo=a.createOscillator(),lg=a.createGain();
-        lfo.frequency.value=5;lg.gain.value=5;
-        lfo.connect(lg);lg.connect(o1.frequency);lg.connect(o2.frequency);
-        lfo.start(t);lfo.stop(t+dur+.05);
-    }
-    // brass filter
-    const flt=a.createBiquadFilter();flt.type='lowpass';
-    flt.frequency.setValueAtTime(1200,t);
-    flt.frequency.linearRampToValueAtTime(500,t+dur);
-    flt.Q.value=3;
-    // mix
-    const mg=a.createGain();mg.gain.value=.22;
-    const sg=a.createGain();sg.gain.value=.08;
-    // envelope
+    const o1=a.createOscillator();o1.type='sawtooth';o1.frequency.value=freq;
+    const o2=a.createOscillator();o2.type='square';o2.frequency.value=freq;
+    const flt=a.createBiquadFilter();flt.type='lowpass';flt.frequency.value=1800;flt.Q.value=2;
+    const mg=a.createGain();mg.gain.value=.2;
+    const sg=a.createGain();sg.gain.value=.06;
     const env=a.createGain();
     env.gain.setValueAtTime(0,t);
-    env.gain.linearRampToValueAtTime(1,t+.04);
-    env.gain.setValueAtTime(.95,t+dur-.15);
+    env.gain.linearRampToValueAtTime(1,t+.03);
+    env.gain.setValueAtTime(.9,t+dur-.04);
     env.gain.linearRampToValueAtTime(0,t+dur);
     o1.connect(mg);o2.connect(sg);mg.connect(flt);sg.connect(flt);
     flt.connect(env);env.connect(muBus);
-    o1.start(t);o2.start(t);o1.stop(t+dur+.05);o2.stop(t+dur+.05);
+    o1.start(t);o2.start(t);o1.stop(t+dur+.02);o2.stop(t+dur+.02);
 }
 
+let musicOn=false;
 function playMusic(){
-    const a=audio(),t=a.currentTime+.08;
-    // fade in fresh
-    muBus.gain.cancelScheduledValues(t);
-    muBus.gain.setValueAtTime(1,t);
-    // Bb3 → A3 → Ab3 → long G3 sliding to E3
-    trombone(233.08, t,      .48);           // Bb3  "wah"
-    trombone(220,    t+.55,  .48);           // A3   "wah"
-    trombone(207.65, t+1.1,  .48);           // Ab3  "wah"
-    trombone(196,    t+1.65, 2.8, 164.81, true); // G3→E3 "waaaaaah"
+    if(musicOn) return;
+    musicOn=true;
+    const a=audio(),t0=a.currentTime+.1;
+    muBus.gain.cancelScheduledValues(t0);
+    muBus.gain.setValueAtTime(1,t0);
+
+    const Q=60/108; // quarter note at 108 BPM ≈ 0.556s
+    // Note freqs in G major
+    const G3=196,A3=220,B3=246.94,D4=293.66,E4=329.63,Fs4=369.99,G4=392,A4=440;
+
+    // 义勇军进行曲 melody: [freq, startBeat, durationBeats]
+    const m=[
+        // 起来！(pickup)
+        [D4,0,.45],[D4,.5,.45],[D4,1,.45],
+        // 不愿做奴隶的人们！
+        [B3,1.5,1.4],[D4,3,.45],
+        [E4,3.5,1.9],
+        [E4,5.5,.45],[D4,6,.4],[B3,6.5,.4],[D4,7,.45],
+        [A3,7.5,2.4],
+        // 把我们的血肉，筑成我们新的长城！
+        [A3,10,.45],[B3,10.5,.45],
+        [D4,11,.4],[D4,11.5,.4],[D4,12,.4],[E4,12.5,.2],[D4,12.75,.2],
+        [B3,13,1.9],
+        [B3,15,.4],[A3,15.5,.4],[B3,16,.4],[D4,16.5,.45],
+        [G3,17,2.4],
+        // 中华民族到了最危险的时候，
+        [D4,19.5,.45],[D4,20,.45],[D4,20.5,.45],
+        [B3,21,1.4],[D4,22.5,.45],
+        [E4,23,1.9],
+        [E4,25,.45],[D4,25.5,.4],[B3,26,.4],[D4,26.5,.45],
+        [A3,27,1.9],
+        // 每个人被迫着发出最后的吼声！
+        [A3,29,.45],[B3,29.5,.45],
+        [D4,30,.4],[D4,30.5,.4],[E4,31,.4],[D4,31.5,.4],
+        [B3,32,.45],[B3,32.5,.45],
+        [A3,33,.4],[B3,33.5,.4],[D4,34,.45],
+        [G3,34.5,1.4],
+        // 起来！起来！起来！
+        [D4,36,1.9],
+        [D4,38,1.9],
+        [E4,40,1.9],
+        // 我们万众一心，
+        [G4,42,.9],[Fs4,43,.4],[E4,43.5,.4],[D4,44,.9],
+        // 冒着敌人的炮火，前进！
+        [E4,45,.4],[D4,45.5,.4],[E4,46,.9],
+        [A4,47,1.9],
+        // 冒着敌人的炮火，前进！前进！前进 进！
+        [E4,49,.4],[D4,49.5,.4],[E4,50,.9],
+        [A4,51,1.9],
+        [G4,53,1.9],
+        [D4,55,.9],
+        [G4,56,2.9],
+    ];
+
+    m.forEach(([f,b,d])=>brass(f,t0+b*Q,d*Q));
+    // reset after anthem ends
+    const total=(59*Q)*1000;
+    setTimeout(()=>{musicOn=false;},total);
 }
 
 function stopMusic(){
     if(!muBus) return;
+    musicOn=false;
     const a=audio(),t=a.currentTime;
     muBus.gain.cancelScheduledValues(t);
     muBus.gain.setValueAtTime(muBus.gain.value,t);
