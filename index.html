@@ -35,16 +35,17 @@
         /* ── flash overlay ── */
         .flash{
             position:fixed;top:0;left:0;width:100%;height:100%;
-            background:radial-gradient(circle at 50% 50%,rgba(255,200,100,.18) 0%,transparent 55%);
+            background:radial-gradient(circle at 50% 50%,rgba(255,200,100,.22) 0%,transparent 55%);
             pointer-events:none;z-index:4;opacity:0;
             transition:opacity .06s ease;
         }
         .flash.on{opacity:1}
 
-        /* ── layout ── */
+        /* ── layout — above canvas so button never fades ── */
         .content{
             display:flex;flex-direction:column;
-            align-items:center;gap:32px;z-index:5;
+            align-items:center;gap:32px;z-index:15;
+            position:relative;
         }
 
         /* ── button ── */
@@ -142,9 +143,10 @@
         /* ── banner ── */
         .banner{
             position:fixed;top:0;left:0;width:100%;height:100%;
-            display:flex;align-items:center;justify-content:center;
+            display:flex;align-items:flex-start;justify-content:center;
+            padding-top:min(10vh,60px);
             z-index:20;pointer-events:none;
-            opacity:0;transition:opacity .9s ease;
+            opacity:0;transition:opacity 1.2s ease;
         }
         .banner.show{opacity:1}
 
@@ -230,109 +232,209 @@ function noise(len,shape){
     return b;
 }
 
+/* mechanical click */
+function sndClick(){
+    const a=audio(),t=a.currentTime;
+    // high transient
+    const o1=a.createOscillator(),g1=a.createGain();
+    o1.frequency.setValueAtTime(1500,t);
+    o1.frequency.exponentialRampToValueAtTime(300,t+.015);
+    g1.gain.setValueAtTime(.35,t);
+    g1.gain.exponentialRampToValueAtTime(.001,t+.035);
+    o1.connect(g1);g1.connect(a.destination);o1.start(t);o1.stop(t+.04);
+    // low thump
+    const o2=a.createOscillator(),g2=a.createGain();
+    o2.type='sine';o2.frequency.value=90;
+    g2.gain.setValueAtTime(.25,t);
+    g2.gain.exponentialRampToValueAtTime(.001,t+.07);
+    o2.connect(g2);g2.connect(a.destination);o2.start(t);o2.stop(t+.08);
+    // noise snap
+    const s=a.createBufferSource();
+    s.buffer=noise(.025,p=>Math.pow(1-p,5));
+    const bp=a.createBiquadFilter();bp.type='bandpass';bp.frequency.value=3500;bp.Q.value=1.5;
+    const g3=a.createGain();g3.gain.setValueAtTime(.3,t);
+    s.connect(bp);bp.connect(g3);g3.connect(a.destination);s.start(t);
+}
+
 function sndLaunch(){
     const a=audio(),t=a.currentTime;
-    // whistle
     const o=a.createOscillator(),g=a.createGain();
     o.type='sine';
     o.frequency.setValueAtTime(280+Math.random()*80,t);
     o.frequency.exponentialRampToValueAtTime(1100+Math.random()*500,t+.38);
-    g.gain.setValueAtTime(.055,t);
+    g.gain.setValueAtTime(.09,t);
     g.gain.exponentialRampToValueAtTime(.001,t+.38);
     o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+.4);
-    // hiss
     const s=a.createBufferSource();s.buffer=noise(.28,p=>Math.pow(1-p,1.6)*.25);
     const hp=a.createBiquadFilter();hp.type='highpass';hp.frequency.value=2200;
-    const g2=a.createGain();g2.gain.setValueAtTime(.035,t);
+    const g2=a.createGain();g2.gain.setValueAtTime(.06,t);
     s.connect(hp);hp.connect(g2);g2.connect(a.destination);s.start(t);
 }
 
 function sndBoom(){
     const a=audio(),t=a.currentTime;
+    // main boom — louder
     const s=a.createBufferSource();
-    s.buffer=noise(.45,p=>Math.pow(1-p,1.4));
+    s.buffer=noise(.55,p=>Math.pow(1-p,1.2));
     const lp=a.createBiquadFilter();lp.type='lowpass';
-    lp.frequency.setValueAtTime(900,t);
-    lp.frequency.exponentialRampToValueAtTime(70,t+.4);
+    lp.frequency.setValueAtTime(1200,t);
+    lp.frequency.exponentialRampToValueAtTime(60,t+.5);
     const g=a.createGain();
-    g.gain.setValueAtTime(.3+Math.random()*.15,t);
-    g.gain.exponentialRampToValueAtTime(.001,t+.45);
+    g.gain.setValueAtTime(.55+Math.random()*.2,t);
+    g.gain.exponentialRampToValueAtTime(.001,t+.55);
     s.connect(lp);lp.connect(g);g.connect(a.destination);s.start(t);
-    setTimeout(sndCrackle,40+Math.random()*90);
+    // sub bass thump
+    const o=a.createOscillator(),gb=a.createGain();
+    o.type='sine';o.frequency.setValueAtTime(60,t);
+    o.frequency.exponentialRampToValueAtTime(25,t+.3);
+    gb.gain.setValueAtTime(.4,t);
+    gb.gain.exponentialRampToValueAtTime(.001,t+.3);
+    o.connect(gb);gb.connect(a.destination);o.start(t);o.stop(t+.35);
+    setTimeout(sndCrackle,30+Math.random()*70);
 }
 
 function sndCrackle(){
-    const a=audio(),n=3+Math.floor(Math.random()*5);
+    const a=audio(),n=5+Math.floor(Math.random()*7);
     for(let i=0;i<n;i++) setTimeout(()=>{
         const t=a.currentTime;
         const s=a.createBufferSource();
-        s.buffer=noise(.02+Math.random()*.025,p=>Math.pow(1-p,4));
-        const g=a.createGain();g.gain.setValueAtTime(.07+Math.random()*.06,t);
+        s.buffer=noise(.025+Math.random()*.03,p=>Math.pow(1-p,4));
+        const g=a.createGain();g.gain.setValueAtTime(.12+Math.random()*.1,t);
         s.connect(g);g.connect(a.destination);s.start(t);
-    },i*(55+Math.random()*110));
+    },i*(40+Math.random()*100));
 }
+
+/* ════════════════════════════════════════════
+   F-SHAPE DEFINITION (for shaped bursts)
+   ════════════════════════════════════════════ */
+const F_MAP=[
+    "FFFFF",
+    "F    ",
+    "F    ",
+    "FFFF ",
+    "F    ",
+    "F    ",
+    "F    ",
+];
+const F_PTS=[];
+for(let y=0;y<F_MAP.length;y++)
+    for(let x=0;x<F_MAP[y].length;x++)
+        if(F_MAP[y][x]==='F') F_PTS.push([x-2, y-3]);
+// 14 anchor points, centered around (0,0)
 
 /* ════════════════════════════════════════════
    FIREWORKS ENGINE
    ════════════════════════════════════════════ */
 const shells=[], pts=[];
+const fGlyphs=[]; // fading "F" text overlays
 
 const PAL=[
-    [255,70,70],[70,160,255],[255,200,50],[70,255,120],
-    [200,70,255],[255,120,200],[255,255,235],[255,140,50],
-    [100,255,255],[255,80,140]
+    [255,70,70],[70,160,255],[255,210,50],[70,255,120],
+    [200,70,255],[255,120,200],[255,255,235],[255,150,50],
+    [100,255,255],[255,80,140],[255,200,150],[180,255,180]
 ];
 const rPal=()=>PAL[Math.random()*PAL.length|0];
 
 class Shell{
     constructor(){
-        this.x=C.width*(.15+Math.random()*.7);
+        this.x=C.width*(.1+Math.random()*.8);
         this.y=C.height+4;
-        this.ty=C.height*(.08+Math.random()*.3);
-        this.vy=-(10+Math.random()*5);
-        this.vx=(Math.random()-.5)*2;
+        this.ty=C.height*(.06+Math.random()*.3);
+        this.vy=-(12+Math.random()*6);
+        this.vx=(Math.random()-.5)*2.5;
         this.col=rPal();this.trail=[];this.ok=true;
     }
     tick(){
         this.trail.push({x:this.x,y:this.y});
-        if(this.trail.length>10)this.trail.shift();
-        this.x+=this.vx;this.y+=this.vy;this.vy+=.15;
+        if(this.trail.length>12)this.trail.shift();
+        this.x+=this.vx;this.y+=this.vy;this.vy+=.14;
         if(this.y<=this.ty||this.vy>=0){this.boom();this.ok=false;}
     }
     draw(){
         for(let i=0;i<this.trail.length;i++){
-            const t=this.trail[i],a=i/this.trail.length*.4;
-            X.beginPath();X.arc(t.x,t.y,1+a*1.5,0,Math.PI*2);
+            const t=this.trail[i],a=i/this.trail.length*.45;
+            X.beginPath();X.arc(t.x,t.y,1+a*2,0,Math.PI*2);
             X.fillStyle=`rgba(255,210,140,${a})`;X.fill();
         }
-        X.beginPath();X.arc(this.x,this.y,2.5,0,Math.PI*2);
-        X.fillStyle='rgba(255,240,200,.9)';X.fill();
+        X.beginPath();X.arc(this.x,this.y,3,0,Math.PI*2);
+        X.fillStyle='rgba(255,240,200,.95)';X.fill();
     }
     boom(){
-        const n=85+Math.random()*70|0;
-        const kind=Math.random();
         const c2=rPal();
         sndBoom();
-        for(let i=0;i<n;i++){
-            let ang=Math.random()*Math.PI*2,spd,c;
-            if(kind<.25){spd=2+Math.random()*5.5;c=this.col;}        // chrysanthemum
-            else if(kind<.5){spd=3+Math.random()*3;c=this.col;}      // peony
-            else if(kind<.75){spd=2+Math.random()*5;c=Math.random()>.5?this.col:c2;} // bicolor
-            else{ang=(i/n)*Math.PI*2+(Math.random()-.5)*.14;spd=3.5+Math.random()*1.5;c=this.col;} // ring
-            pts.push({
-                x:this.x,y:this.y,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,
-                life:1,decay:.005+Math.random()*.013,col:c,
-                sz:1.2+Math.random()*2,g:.022+Math.random()*.016,
-                fr:.984+Math.random()*.012,tw:Math.random()>.72,trail:[]
-            });
+
+        // floating F glyph
+        fGlyphs.push({
+            x:this.x, y:this.y, life:1,
+            sz:70+Math.random()*80,
+            col:this.col
+        });
+
+        // decide burst type: 55% F-shaped, 45% traditional
+        const isF = Math.random() < .55;
+
+        if(isF){
+            // F-shaped burst
+            const scale = 18 + Math.random()*14; // px per grid unit
+            const timeK = .22; // arrival ~0.22s
+            for(let p=0;p<F_PTS.length;p++){
+                const [fx,fy]=F_PTS[p];
+                const tx=fx*scale, ty=fy*scale;
+                // spawn cluster of 6-9 particles per anchor point
+                const clust=6+Math.floor(Math.random()*4);
+                for(let j=0;j<clust;j++){
+                    const jx=(Math.random()-.5)*scale*.4;
+                    const jy=(Math.random()-.5)*scale*.4;
+                    const dx=tx+jx, dy=ty+jy;
+                    const spd=Math.sqrt(dx*dx+dy*dy)/(.22*60);
+                    const ang=Math.atan2(dy,dx);
+                    const c=Math.random()>.3?this.col:c2;
+                    pts.push({
+                        x:this.x,y:this.y,
+                        vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,
+                        life:1,decay:.005+Math.random()*.01,col:c,
+                        sz:2+Math.random()*2.5,g:.018+Math.random()*.012,
+                        fr:.975+Math.random()*.015,tw:Math.random()>.75,trail:[]
+                    });
+                }
+            }
+            // scatter fill particles for density
+            for(let i=0;i<40;i++){
+                const ang=Math.random()*Math.PI*2;
+                const spd=1+Math.random()*4;
+                pts.push({
+                    x:this.x,y:this.y,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,
+                    life:1,decay:.008+Math.random()*.015,col:this.col,
+                    sz:1.5+Math.random()*1.5,g:.02+Math.random()*.015,
+                    fr:.98+Math.random()*.012,tw:Math.random()>.6,trail:[]
+                });
+            }
+        } else {
+            // traditional grand burst — more particles, bigger
+            const n=130+Math.random()*90|0;
+            const kind=Math.random();
+            for(let i=0;i<n;i++){
+                let ang=Math.random()*Math.PI*2,spd,c;
+                if(kind<.3){spd=3+Math.random()*7;c=this.col;}
+                else if(kind<.55){spd=4+Math.random()*4;c=this.col;}
+                else if(kind<.8){spd=3+Math.random()*6.5;c=Math.random()>.5?this.col:c2;}
+                else{ang=(i/n)*Math.PI*2+(Math.random()-.5)*.14;spd=4.5+Math.random()*2;c=this.col;}
+                pts.push({
+                    x:this.x,y:this.y,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,
+                    life:1,decay:.004+Math.random()*.011,col:c,
+                    sz:2+Math.random()*3,g:.02+Math.random()*.016,
+                    fr:.982+Math.random()*.014,tw:Math.random()>.7,trail:[]
+                });
+            }
         }
-        // glitter core
-        for(let i=0;i<14;i++){
-            const a=Math.random()*Math.PI*2,s=.4+Math.random()*.8;
+
+        // glitter core (always)
+        for(let i=0;i<20;i++){
+            const a=Math.random()*Math.PI*2,s=.3+Math.random()*.7;
             pts.push({
                 x:this.x,y:this.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,
-                life:1,decay:.018+Math.random()*.02,col:[255,255,220],
-                sz:.5+Math.random(),g:.01,fr:.99,tw:true,trail:[]
+                life:1,decay:.015+Math.random()*.02,col:[255,255,220],
+                sz:.8+Math.random()*1.2,g:.008,fr:.99,tw:true,trail:[]
             });
         }
     }
@@ -341,35 +443,54 @@ class Shell{
 /* render loop */
 (function loop(){
     requestAnimationFrame(loop);
-    X.fillStyle='rgba(6,6,8,.14)';
+    X.fillStyle='rgba(6,6,8,.13)';
     X.fillRect(0,0,C.width,C.height);
 
+    // shells
     for(let i=shells.length;i--;){
         shells[i].tick();shells[i].draw();
         if(!shells[i].ok) shells.splice(i,1);
     }
+
+    // particles
     for(let i=pts.length;i--;){
         const p=pts[i];
         p.trail.push({x:p.x,y:p.y});
-        if(p.trail.length>5)p.trail.shift();
+        if(p.trail.length>6)p.trail.shift();
         p.x+=p.vx;p.y+=p.vy;p.vy+=p.g;p.vx*=p.fr;p.vy*=p.fr;
         p.life-=p.decay;
         if(p.life<=0){pts.splice(i,1);continue;}
         const[r,g,b]=p.col;
         let v=1;if(p.tw&&Math.random()>.7)v=.25;
-        // trail
         for(let j=0;j<p.trail.length;j++){
-            const t=p.trail[j],ta=j/p.trail.length*p.life*.3*v;
-            X.beginPath();X.arc(t.x,t.y,p.sz*.45*p.life,0,Math.PI*2);
+            const t=p.trail[j],ta=j/p.trail.length*p.life*.35*v;
+            X.beginPath();X.arc(t.x,t.y,p.sz*.5*p.life,0,Math.PI*2);
             X.fillStyle=`rgba(${r},${g},${b},${ta})`;X.fill();
         }
-        // dot
-        const sz=p.sz*Math.max(p.life,.25);
+        const sz=p.sz*Math.max(p.life,.2);
         X.beginPath();X.arc(p.x,p.y,sz,0,Math.PI*2);
         X.fillStyle=`rgba(${r},${g},${b},${p.life*v})`;X.fill();
-        // glow
-        X.beginPath();X.arc(p.x,p.y,sz*2.8,0,Math.PI*2);
-        X.fillStyle=`rgba(${r},${g},${b},${p.life*.1*v})`;X.fill();
+        X.beginPath();X.arc(p.x,p.y,sz*3,0,Math.PI*2);
+        X.fillStyle=`rgba(${r},${g},${b},${p.life*.12*v})`;X.fill();
+    }
+
+    // fading F glyphs at explosion sites
+    for(let i=fGlyphs.length;i--;){
+        const f=fGlyphs[i];
+        f.life-=.006;
+        f.y-=.15; // drift up slowly
+        if(f.life<=0){fGlyphs.splice(i,1);continue;}
+        const[r,g,b]=f.col;
+        X.save();
+        X.font=`900 ${f.sz}px Cinzel,Georgia,serif`;
+        X.textAlign='center';X.textBaseline='middle';
+        // outer glow
+        X.fillStyle=`rgba(${r},${g},${b},${f.life*.08})`;
+        X.fillText('F',f.x,f.y);
+        // core
+        X.fillStyle=`rgba(${r},${g},${b},${f.life*.18})`;
+        X.fillText('F',f.x,f.y);
+        X.restore();
     }
 })();
 
@@ -380,7 +501,7 @@ const dome=document.getElementById('dome');
 const ban=document.getElementById('banner');
 const fl=document.getElementById('flash');
 const sh=document.getElementById('shadow');
-let btHide,btFade;
+let bannerShown=false;
 
 function fire(){
     dome.classList.add('hit');
@@ -388,19 +509,27 @@ function fire(){
     fl.classList.add('on');
     setTimeout(()=>fl.classList.remove('on'),140);
 
+    // click sound immediately
+    sndClick();
+
+    // grander fireworks — 6 waves, more shells
     const W=[
-        {n:3,d:0,  gap:140},
-        {n:4,d:550,gap:180},
-        {n:3,d:1200,gap:160},
-        {n:5,d:2000,gap:110},
+        {n:4,d:0,   gap:120},
+        {n:5,d:500, gap:150},
+        {n:4,d:1100,gap:130},
+        {n:5,d:1800,gap:110},
+        {n:6,d:2600,gap:100},
+        {n:7,d:3500,gap:80},
     ];
     W.forEach(w=>{for(let i=0;i<w.n;i++)
         setTimeout(()=>{shells.push(new Shell());sndLaunch();},w.d+i*w.gap);
     });
 
-    clearTimeout(btHide);clearTimeout(btFade);
-    btHide=setTimeout(()=>ban.classList.add('show'),450);
-    btFade=setTimeout(()=>ban.classList.remove('show'),5500);
+    // show banner permanently on first press
+    if(!bannerShown){
+        bannerShown=true;
+        setTimeout(()=>ban.classList.add('show'),400);
+    }
 }
 
 function up(){dome.classList.remove('hit');sh.classList.remove('sm');}
