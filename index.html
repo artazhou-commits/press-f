@@ -311,114 +311,65 @@ function sndCrackle(){
 }
 
 /* ════════════════════════════════════════════
-   CHINESE INSTRUMENTAL MUSIC (synthesized)
-   Erhu melody + guzheng plucks in A minor pentatonic (Yu mode)
+   SAD TROMBONE  "wah wah waaaaaah" → muBus
    ════════════════════════════════════════════ */
-let musicOn=false;
+let muGain=null; // master music gain for fade-out
 
-/* erhu — sawtooth + vibrato + filter → muBus */
-function erhu(freq,start,dur){
+function trombone(freq,start,dur,slide,vib){
     const a=audio(),t=start;
-    const osc=a.createOscillator();osc.type='sawtooth';
-    osc.frequency.setValueAtTime(freq,t);
-    // vibrato
-    const lfo=a.createOscillator(),ld=a.createGain();
-    lfo.frequency.value=5.5;ld.gain.value=freq*.018;
-    lfo.connect(ld);ld.connect(osc.frequency);
-    // portamento slides
-    osc.frequency.setValueAtTime(freq*.985,t);
-    osc.frequency.linearRampToValueAtTime(freq,t+.12);
-    // filter
+    // sawtooth + square mix for brassy timbre
+    const o1=a.createOscillator();o1.type='sawtooth';o1.frequency.setValueAtTime(freq,t);
+    const o2=a.createOscillator();o2.type='square';o2.frequency.setValueAtTime(freq,t);
+    if(slide){
+        o1.frequency.setValueAtTime(freq,t+dur*.15);
+        o1.frequency.linearRampToValueAtTime(slide,t+dur);
+        o2.frequency.setValueAtTime(freq,t+dur*.15);
+        o2.frequency.linearRampToValueAtTime(slide,t+dur);
+    }
+    // vibrato on long notes
+    if(vib){
+        const lfo=a.createOscillator(),lg=a.createGain();
+        lfo.frequency.value=5;lg.gain.value=5;
+        lfo.connect(lg);lg.connect(o1.frequency);lg.connect(o2.frequency);
+        lfo.start(t);lfo.stop(t+dur+.05);
+    }
+    // brass filter
     const flt=a.createBiquadFilter();flt.type='lowpass';
-    flt.frequency.value=1600;flt.Q.value=2.5;
+    flt.frequency.setValueAtTime(1200,t);
+    flt.frequency.linearRampToValueAtTime(500,t+dur);
+    flt.Q.value=3;
+    // mix
+    const mg=a.createGain();mg.gain.value=.22;
+    const sg=a.createGain();sg.gain.value=.08;
     // envelope
     const env=a.createGain();
-    const atk=Math.min(.15,dur*.15);
     env.gain.setValueAtTime(0,t);
-    env.gain.linearRampToValueAtTime(.28,t+atk);
-    env.gain.setValueAtTime(.28,t+dur-.35);
+    env.gain.linearRampToValueAtTime(1,t+.04);
+    env.gain.setValueAtTime(.95,t+dur-.15);
     env.gain.linearRampToValueAtTime(0,t+dur);
-    osc.connect(flt);flt.connect(env);env.connect(muBus);
-    osc.start(t);lfo.start(t);osc.stop(t+dur+.01);lfo.stop(t+dur+.01);
-}
-
-/* guzheng pluck — triangle + harmonics + attack noise → muBus */
-function guzheng(freq,start){
-    const a=audio(),t=start;
-    const o1=a.createOscillator();o1.type='triangle';o1.frequency.value=freq;
-    const o2=a.createOscillator();o2.type='sine';o2.frequency.value=freq*2;
-    const o3=a.createOscillator();o3.type='sine';o3.frequency.value=freq*3;
-    const g1=a.createGain();g1.gain.setValueAtTime(.18,t);g1.gain.exponentialRampToValueAtTime(.001,t+2.5);
-    const g2=a.createGain();g2.gain.setValueAtTime(.06,t);g2.gain.exponentialRampToValueAtTime(.001,t+1.5);
-    const g3=a.createGain();g3.gain.setValueAtTime(.025,t);g3.gain.exponentialRampToValueAtTime(.001,t+.8);
-    o1.connect(g1);g1.connect(muBus);
-    o2.connect(g2);g2.connect(muBus);
-    o3.connect(g3);g3.connect(muBus);
-    o1.start(t);o2.start(t);o3.start(t);
-    o1.stop(t+3);o2.stop(t+2);o3.stop(t+1);
-    // pluck noise
-    const ns=a.createBufferSource();ns.buffer=noise(.015,p=>Math.pow(1-p,4));
-    const ng=a.createGain();ng.gain.setValueAtTime(.07,t);
-    const hp=a.createBiquadFilter();hp.type='highpass';hp.frequency.value=1500;
-    ns.connect(hp);hp.connect(ng);ng.connect(muBus);ns.start(t);
-}
-
-/* drone pad for atmosphere → muBus */
-function drone(freq,start,dur){
-    const a=audio(),t=start;
-    const o=a.createOscillator();o.type='sine';o.frequency.value=freq;
-    const o2=a.createOscillator();o2.type='sine';o2.frequency.value=freq*1.002;// slight detune
-    const flt=a.createBiquadFilter();flt.type='lowpass';flt.frequency.value=600;
-    const g=a.createGain();
-    g.gain.setValueAtTime(0,t);
-    g.gain.linearRampToValueAtTime(.06,t+2);
-    g.gain.setValueAtTime(.06,t+dur-3);
-    g.gain.linearRampToValueAtTime(0,t+dur);
-    o.connect(flt);o2.connect(flt);flt.connect(g);g.connect(muBus);
-    o.start(t);o2.start(t);o.stop(t+dur+.1);o2.stop(t+dur+.1);
+    o1.connect(mg);o2.connect(sg);mg.connect(flt);sg.connect(flt);
+    flt.connect(env);env.connect(muBus);
+    o1.start(t);o2.start(t);o1.stop(t+dur+.05);o2.stop(t+dur+.05);
 }
 
 function playMusic(){
-    if(musicOn) return;
-    musicOn=true;
-    const a=audio(),t0=a.currentTime+.15;
-    const B=60/52; // ~1.15s per beat at 52 BPM
+    const a=audio(),t=a.currentTime+.08;
+    // fade in fresh
+    muBus.gain.cancelScheduledValues(t);
+    muBus.gain.setValueAtTime(1,t);
+    // Bb3 → A3 → Ab3 → long G3 sliding to E3
+    trombone(233.08, t,      .48);           // Bb3  "wah"
+    trombone(220,    t+.55,  .48);           // A3   "wah"
+    trombone(207.65, t+1.1,  .48);           // Ab3  "wah"
+    trombone(196,    t+1.65, 2.8, 164.81, true); // G3→E3 "waaaaaah"
+}
 
-    // Note frequencies (A minor pentatonic / Yu mode)
-    const A3=220,C4=261.63,D4=293.66,E4=329.63,G3=196,G4=392,A4=440,E3=164.81;
-
-    // ── erhu melody: [freq, startBeat, durationBeats] ──
-    const mel=[
-        [E4,0,3],[D4,3.5,2],[C4,6,3.5],
-        [A3,10.5,2.5],[C4,13.5,1.5],[D4,15.5,2.5],[C4,18.5,2],[A3,21,4],
-        [E4,26,2],[G4,28.5,3.5],[E4,32.5,2],[D4,35,3.5],
-        [C4,39.5,2.5],[D4,42.5,1.5],[C4,44.5,2.5],[A3,47.5,5],
-    ];
-    mel.forEach(([f,b,d])=>erhu(f,t0+b*B,d*B));
-
-    // ── guzheng accompaniment: [freq, startBeat] ──
-    const gz=[
-        [A3,0],[E4,.6],
-        [A3,6],[C4,6.5],
-        [E3,10.5],[A3,10.9],
-        [C4,13.5],[A3,13.9],
-        [E3,21],[A3,21.4],
-        [G3,26],[E4,26.5],
-        [A3,28.5],[C4,28.9],
-        [A3,32.5],[D4,32.9],
-        [A3,35],[G3,35.4],
-        [A3,39.5],[E4,39.9],
-        [C4,42.5],[A3,42.9],
-        [E3,47.5],[A3,47.9],[E4,48.3],
-    ];
-    gz.forEach(([f,b])=>guzheng(f,t0+b*B));
-
-    // ── low drone on A2/E3 ──
-    drone(110,t0,53*B);
-    drone(E3,t0+10*B,43*B);
-
-    const total=53*B*1000;
-    setTimeout(()=>{musicOn=false;},total);
+function stopMusic(){
+    if(!muBus) return;
+    const a=audio(),t=a.currentTime;
+    muBus.gain.cancelScheduledValues(t);
+    muBus.gain.setValueAtTime(muBus.gain.value,t);
+    muBus.gain.linearRampToValueAtTime(0,t+.5);
 }
 
 /* ════════════════════════════════════════════
@@ -492,7 +443,7 @@ class Shell{
 
         if(isF){
             // F-shaped burst
-            const scale = 18 + Math.random()*14; // px per grid unit
+            const scale = 35 + Math.random()*25; // px per grid unit — wide spread
             const timeK = .22; // arrival ~0.22s
             for(let p=0;p<F_PTS.length;p++){
                 const [fx,fy]=F_PTS[p];
@@ -560,8 +511,7 @@ class Shell{
 /* render loop */
 (function loop(){
     requestAnimationFrame(loop);
-    X.fillStyle='rgba(6,6,8,.13)';
-    X.fillRect(0,0,C.width,C.height);
+    X.clearRect(0,0,C.width,C.height);
 
     // shells
     for(let i=shells.length;i--;){
@@ -573,7 +523,7 @@ class Shell{
     for(let i=pts.length;i--;){
         const p=pts[i];
         p.trail.push({x:p.x,y:p.y});
-        if(p.trail.length>6)p.trail.shift();
+        if(p.trail.length>10)p.trail.shift();
         p.x+=p.vx;p.y+=p.vy;p.vy+=p.g;p.vx*=p.fr;p.vy*=p.fr;
         p.life-=p.decay;
         if(p.life<=0){pts.splice(i,1);continue;}
@@ -646,7 +596,7 @@ function fire(){
     // show banner, fade after 10s
     clearTimeout(bannerHide);
     ban.classList.add('show');
-    bannerHide=setTimeout(()=>ban.classList.remove('show'),10000);
+    bannerHide=setTimeout(()=>{ban.classList.remove('show');stopMusic();},10000);
 }
 
 function up(){dome.classList.remove('hit');sh.classList.remove('sm');}
