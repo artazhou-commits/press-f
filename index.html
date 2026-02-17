@@ -343,6 +343,11 @@ for(let y=0;y<F_MAP.length;y++)
 const shells=[], pts=[];
 const fGlyphs=[]; // fading "F" text overlays
 
+/* ── rate limiter ── */
+const MAX_PTS=800, MAX_SHELLS=12, MAX_GLYPHS=6;
+// returns 0–1 budget factor: 1 = plenty of room, 0 = at cap
+function budget(){return Math.max(0,1-pts.length/MAX_PTS);}
+
 const PAL=[
     [255,70,70],[70,160,255],[255,210,50],[70,255,120],
     [200,70,255],[255,120,200],[255,255,235],[255,150,50],
@@ -377,58 +382,58 @@ class Shell{
     boom(){
         const c2=rPal();
         sndBoom();
+        const b=budget(); // 0–1 how much room we have
+        if(b<.05) return; // at cap, just play sound
 
-        // floating F glyph
-        fGlyphs.push({
-            x:this.x, y:this.y, life:1,
-            sz:70+Math.random()*80,
-            col:this.col
-        });
+        // floating F glyph (capped)
+        if(fGlyphs.length<MAX_GLYPHS)
+            fGlyphs.push({x:this.x,y:this.y,life:1,sz:70+Math.random()*80,col:this.col});
 
-        // decide burst type: 55% F-shaped, 45% traditional
-        const isF = Math.random() < .55;
+        // faster decay when loaded so particles clear sooner
+        const dBoost=b<.4?(.02*(1-b)):0;
+        const isF=Math.random()<.55;
 
         if(isF){
-            // F-shaped burst
-            const scale = 35 + Math.random()*25; // px per grid unit — wide spread
-            const timeK = .22; // arrival ~0.22s
+            const scale=35+Math.random()*25;
+            // scale cluster size by budget: 2–6 instead of 6–9 when loaded
+            const baseClust=Math.max(2,Math.round((6+Math.random()*4)*b));
             for(let p=0;p<F_PTS.length;p++){
+                if(pts.length>=MAX_PTS) break;
                 const [fx,fy]=F_PTS[p];
-                const tx=fx*scale, ty=fy*scale;
-                // spawn cluster of 6-9 particles per anchor point
-                const clust=6+Math.floor(Math.random()*4);
-                for(let j=0;j<clust;j++){
+                const tx=fx*scale,ty=fy*scale;
+                for(let j=0;j<baseClust;j++){
+                    if(pts.length>=MAX_PTS) break;
                     const jx=(Math.random()-.5)*scale*.4;
                     const jy=(Math.random()-.5)*scale*.4;
-                    const dx=tx+jx, dy=ty+jy;
+                    const dx=tx+jx,dy=ty+jy;
                     const spd=Math.sqrt(dx*dx+dy*dy)/(.22*60);
                     const ang=Math.atan2(dy,dx);
                     const c=Math.random()>.3?this.col:c2;
                     pts.push({
-                        x:this.x,y:this.y,
-                        vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,
-                        life:1,decay:.005+Math.random()*.01,col:c,
+                        x:this.x,y:this.y,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,
+                        life:1,decay:.005+Math.random()*.01+dBoost,col:c,
                         sz:2+Math.random()*2.5,g:.018+Math.random()*.012,
                         fr:.975+Math.random()*.015,tw:Math.random()>.75,trail:[]
                     });
                 }
             }
-            // scatter fill particles for density
-            for(let i=0;i<40;i++){
+            // scatter fill — scale by budget
+            const scatterN=Math.round(40*b);
+            for(let i=0;i<scatterN&&pts.length<MAX_PTS;i++){
                 const ang=Math.random()*Math.PI*2;
                 const spd=1+Math.random()*4;
                 pts.push({
                     x:this.x,y:this.y,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,
-                    life:1,decay:.008+Math.random()*.015,col:this.col,
+                    life:1,decay:.008+Math.random()*.015+dBoost,col:this.col,
                     sz:1.5+Math.random()*1.5,g:.02+Math.random()*.015,
                     fr:.98+Math.random()*.012,tw:Math.random()>.6,trail:[]
                 });
             }
         } else {
-            // traditional grand burst — more particles, bigger
-            const n=130+Math.random()*90|0;
+            // traditional burst — scale count by budget
+            const n=Math.round((80+Math.random()*60)*Math.max(b,.3))|0;
             const kind=Math.random();
-            for(let i=0;i<n;i++){
+            for(let i=0;i<n&&pts.length<MAX_PTS;i++){
                 let ang=Math.random()*Math.PI*2,spd,c;
                 if(kind<.3){spd=3+Math.random()*7;c=this.col;}
                 else if(kind<.55){spd=4+Math.random()*4;c=this.col;}
@@ -436,15 +441,16 @@ class Shell{
                 else{ang=(i/n)*Math.PI*2+(Math.random()-.5)*.14;spd=4.5+Math.random()*2;c=this.col;}
                 pts.push({
                     x:this.x,y:this.y,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,
-                    life:1,decay:.004+Math.random()*.011,col:c,
+                    life:1,decay:.004+Math.random()*.011+dBoost,col:c,
                     sz:2+Math.random()*3,g:.02+Math.random()*.016,
                     fr:.982+Math.random()*.014,tw:Math.random()>.7,trail:[]
                 });
             }
         }
 
-        // glitter core (always)
-        for(let i=0;i<20;i++){
+        // glitter core — scale by budget
+        const glitN=Math.round(12*b);
+        for(let i=0;i<glitN&&pts.length<MAX_PTS;i++){
             const a=Math.random()*Math.PI*2,s=.3+Math.random()*.7;
             pts.push({
                 x:this.x,y:this.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,
@@ -466,11 +472,14 @@ class Shell{
         if(!shells[i].ok) shells.splice(i,1);
     }
 
-    // particles
-    for(let i=pts.length;i--;){
+    // particles — adaptive quality based on count
+    const pc=pts.length;
+    const maxTrail=pc>600?3:pc>400?5:10;  // shorter trails when busy
+    const drawGlow=pc<500;                  // skip glow when busy
+    for(let i=pc;i--;){
         const p=pts[i];
         p.trail.push({x:p.x,y:p.y});
-        if(p.trail.length>10)p.trail.shift();
+        if(p.trail.length>maxTrail)p.trail.shift();
         p.x+=p.vx;p.y+=p.vy;p.vy+=p.g;p.vx*=p.fr;p.vy*=p.fr;
         p.life-=p.decay;
         if(p.life<=0){pts.splice(i,1);continue;}
@@ -484,8 +493,10 @@ class Shell{
         const sz=p.sz*Math.max(p.life,.2);
         X.beginPath();X.arc(p.x,p.y,sz,0,Math.PI*2);
         X.fillStyle=`rgba(${r},${g},${b},${p.life*v})`;X.fill();
-        X.beginPath();X.arc(p.x,p.y,sz*3,0,Math.PI*2);
-        X.fillStyle=`rgba(${r},${g},${b},${p.life*.12*v})`;X.fill();
+        if(drawGlow){
+            X.beginPath();X.arc(p.x,p.y,sz*3,0,Math.PI*2);
+            X.fillStyle=`rgba(${r},${g},${b},${p.life*.12*v})`;X.fill();
+        }
     }
 
     // fading F glyphs at explosion sites
@@ -536,7 +547,7 @@ function fire(){
         {n:7,d:3500,gap:80},
     ];
     W.forEach(w=>{for(let i=0;i<w.n;i++)
-        setTimeout(()=>{shells.push(new Shell());sndLaunch();},w.d+i*w.gap);
+        setTimeout(()=>{if(shells.length<MAX_SHELLS){shells.push(new Shell());sndLaunch();}},w.d+i*w.gap);
     });
 
     // show banner, fade after 10s
