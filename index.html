@@ -21,7 +21,7 @@
 
         body{
             display:flex;flex-direction:column;
-            align-items:center;justify-content:center;
+            align-items:center;justify-content:flex-end;padding-bottom:min(5vh,45px);
             font-family:-apple-system,BlinkMacSystemFont,sans-serif;
             background:
                 radial-gradient(ellipse 80% 60% at 50% 55%,#12101a 0%,#060608 100%);
@@ -144,9 +144,9 @@
 
         /* ── banner ── */
         .banner{
-            position:fixed;top:0;left:0;width:100%;height:100%;
-            display:flex;align-items:flex-start;justify-content:center;
-            padding-top:min(10vh,60px);
+            position:fixed;top:0;left:0;width:100%;
+            display:flex;justify-content:center;
+            padding-top:min(8vh,48px);
             z-index:20;pointer-events:none;
             opacity:0;transition:opacity 1.2s ease;
         }
@@ -154,38 +154,48 @@
 
         .banner-box{
             text-align:center;
-            padding:28px 52px;
-            background:linear-gradient(180deg,rgba(6,6,8,.82),rgba(6,6,8,.65));
-            border-top:2px solid rgba(212,175,55,.45);
-            border-bottom:2px solid rgba(212,175,55,.45);
-            backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+            padding:22px 48px;
+            background:rgba(6,6,8,.75);
+            border:1px solid rgba(212,175,55,.3);
+            border-radius:12px;
+            backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+            box-shadow:0 4px 30px rgba(0,0,0,.5),inset 0 1px 0 rgba(212,175,55,.1);
         }
 
         .banner-txt{
             font-family:'Outfit',sans-serif;
-            font-size:clamp(26px,5.8vw,54px);
-            font-weight:900;
+            font-size:clamp(20px,4.2vw,36px);
+            font-weight:700;
             color:#d4af37;
             text-shadow:
-                0 0 22px rgba(212,175,55,.5),
-                0 0 44px rgba(212,175,55,.18);
-            letter-spacing:3px;line-height:1.35;
+                0 0 18px rgba(212,175,55,.4),
+                0 0 36px rgba(212,175,55,.12);
+            letter-spacing:2px;line-height:1.25;
+        }
+        .banner-rip{
+            display:block;
+            letter-spacing:4px;
         }
 
         /* ── mobile portrait ── */
         @media(max-width:480px){
+            body{padding-bottom:min(6vh,50px)}
+            .content{gap:20px}
             .btn-base{width:230px;height:230px}
             .btn-rim{width:204px;height:204px}
             .btn-dome{width:174px;height:174px}
             .btn-shadow{width:195px}
             .f{font-size:68px}
             .sub{font-size:11px;letter-spacing:3px}
-            .banner-box{padding:20px 28px}
+            .banner{padding-top:min(5vh,32px)}
+            .banner-box{padding:16px 24px}
+            .banner-txt{font-size:clamp(18px,4.5vw,30px)}
         }
 
-        /* ── mobile landscape — shrink everything so banner + button don't overlap ── */
+        /* ── mobile landscape ── */
         @media(max-height:500px) and (orientation:landscape){
-            .content{gap:10px}
+            body{padding-bottom:20px}
+            .content{gap:8px}
             .btn-base{width:150px;height:150px}
             .btn-rim{width:133px;height:133px}
             .btn-dome{width:112px;height:112px}
@@ -193,8 +203,8 @@
             .f{font-size:44px}
             .sub{font-size:9px;letter-spacing:2px}
             .banner{padding-top:4px}
-            .banner-box{padding:8px 20px}
-            .banner-txt{font-size:clamp(14px,3.5vh,24px);letter-spacing:2px}
+            .banner-box{padding:6px 18px}
+            .banner-txt{font-size:clamp(12px,3vh,20px);letter-spacing:1px;line-height:1.2}
         }
     </style>
 </head>
@@ -219,7 +229,7 @@
 
 <div class="banner" id="banner">
     <div class="banner-box">
-        <div class="banner-txt">RIP Justin (Zhiyi) Kuang</div>
+        <div class="banner-txt"><span class="banner-rip">🪦 RIP 🪦</span><br>Justin (Zhiyi) Kuang</div>
     </div>
 </div>
 
@@ -358,7 +368,7 @@ const shells=[], pts=[];
 const fGlyphs=[]; // fading "F" text overlays
 
 /* ── rate limiter ── */
-const MAX_PTS=800, MAX_SHELLS=12, MAX_GLYPHS=6;
+const MAX_PTS=1400, MAX_SHELLS=20, MAX_GLYPHS=10;
 // returns 0–1 budget factor: 1 = plenty of room, 0 = at cap
 function budget(){return Math.max(0,1-pts.length/MAX_PTS);}
 
@@ -541,6 +551,7 @@ const ban=document.getElementById('banner');
 const fl=document.getElementById('flash');
 const sh=document.getElementById('shadow');
 let bannerHide;
+let musicPlayed=false;
 
 function fire(){
     dome.classList.add('hit');
@@ -548,27 +559,31 @@ function fire(){
     fl.classList.add('on');
     setTimeout(()=>fl.classList.remove('on'),140);
 
-    // click sound + anthem
+    // click sound + anthem (only on first press per page load)
     sndClick();
-    playMusic();
+    if(!musicPlayed){playMusic();musicPlayed=true;}
 
-    // grander fireworks — 6 waves, more shells
+    // grander fireworks — 10 waves, more shells
     const W=[
-        {n:4,d:0,   gap:120},
-        {n:5,d:500, gap:150},
-        {n:4,d:1100,gap:130},
-        {n:5,d:1800,gap:110},
-        {n:6,d:2600,gap:100},
-        {n:7,d:3500,gap:80},
+        {n:6,d:0,    gap:100},
+        {n:7,d:500,  gap:120},
+        {n:6,d:1100, gap:110},
+        {n:8,d:1800, gap:100},
+        {n:7,d:2600, gap:90},
+        {n:8,d:3500, gap:80},
+        {n:7,d:4500, gap:90},
+        {n:8,d:5500, gap:80},
+        {n:6,d:6500, gap:100},
+        {n:7,d:7500, gap:80},
     ];
     W.forEach(w=>{for(let i=0;i<w.n;i++)
         setTimeout(()=>{if(shells.length<MAX_SHELLS){shells.push(new Shell());sndLaunch();}},w.d+i*w.gap);
     });
 
-    // show banner, fade after 10s
+    // show banner, fade after 15s
     clearTimeout(bannerHide);
     ban.classList.add('show');
-    bannerHide=setTimeout(()=>{ban.classList.remove('show');stopMusic();},10000);
+    bannerHide=setTimeout(()=>{ban.classList.remove('show');stopMusic();},15000);
 }
 
 function up(){dome.classList.remove('hit');sh.classList.remove('sm');}
