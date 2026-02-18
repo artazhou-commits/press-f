@@ -238,9 +238,13 @@ resize();
    AUDIO  (Web Audio API — no files needed)
    Two buses: a.destination (quiet fireworks), muBus (loud music)
    ════════════════════════════════════════════ */
-let ac;
+let ac,muBus;
 function audio(){
-    if(!ac) ac=new(AudioContext||webkitAudioContext)();
+    if(!ac){
+        ac=new(AudioContext||webkitAudioContext)();
+        muBus=ac.createGain();muBus.gain.value=0.85;
+        muBus.connect(ac.destination);
+    }
     if(ac.state==='suspended') ac.resume();
     return ac;
 }
@@ -318,6 +322,253 @@ function sndCrackle(){
     },i*(40+Math.random()*100));
 }
 
+/* ════════════════════════════════════════════
+   CHINESE NATIONAL ANTHEM  义勇军进行曲
+   Orchestral arrangement → muBus
+   ════════════════════════════════════════════ */
+
+/* --- Instrument voices --- */
+
+// Brass (trumpets) — sawtooth + square, lowpass filtered
+function brass(freq,start,dur){
+    const a=audio(),t=start;
+    const o1=a.createOscillator();o1.type='sawtooth';o1.frequency.value=freq;
+    const o2=a.createOscillator();o2.type='square';o2.frequency.value=freq*1.001;
+    const flt=a.createBiquadFilter();flt.type='lowpass';flt.frequency.value=2200;flt.Q.value=1.5;
+    const mg=a.createGain();mg.gain.value=.18;
+    const sg=a.createGain();sg.gain.value=.05;
+    const env=a.createGain();
+    env.gain.setValueAtTime(0,t);
+    env.gain.linearRampToValueAtTime(.85,t+.04);
+    env.gain.setValueAtTime(.75,t+dur-.05);
+    env.gain.linearRampToValueAtTime(0,t+dur);
+    o1.connect(mg);o2.connect(sg);mg.connect(flt);sg.connect(flt);
+    flt.connect(env);env.connect(muBus);
+    o1.start(t);o2.start(t);o1.stop(t+dur+.02);o2.stop(t+dur+.02);
+}
+
+// Strings (violins) — detuned sawtooths with vibrato, highpass filtered for shimmer
+function strings(freq,start,dur,vol){
+    const a=audio(),t=start,v=vol||.1;
+    // 3 detuned oscillators for rich ensemble
+    for(let d=-4;d<=4;d+=4){
+        const o=a.createOscillator();o.type='sawtooth';o.frequency.value=freq+d;
+        // vibrato LFO
+        const lfo=a.createOscillator();lfo.type='sine';lfo.frequency.value=4.5+Math.random();
+        const lfog=a.createGain();lfog.gain.value=2.5;
+        lfo.connect(lfog);lfog.connect(o.frequency);
+        const flt=a.createBiquadFilter();flt.type='lowpass';flt.frequency.value=3500;flt.Q.value=.7;
+        const env=a.createGain();
+        env.gain.setValueAtTime(0,t);
+        env.gain.linearRampToValueAtTime(v/3,t+.08);
+        env.gain.setValueAtTime(v/3*.85,t+dur-.06);
+        env.gain.linearRampToValueAtTime(0,t+dur);
+        o.connect(flt);flt.connect(env);env.connect(muBus);
+        o.start(t);lfo.start(t);o.stop(t+dur+.02);lfo.stop(t+dur+.02);
+    }
+}
+
+// French horn — square + triangle mix, warm lowpass
+function horn(freq,start,dur,vol){
+    const a=audio(),t=start,v=vol||.12;
+    const o1=a.createOscillator();o1.type='square';o1.frequency.value=freq;
+    const o2=a.createOscillator();o2.type='triangle';o2.frequency.value=freq*.999;
+    const flt=a.createBiquadFilter();flt.type='lowpass';flt.frequency.value=1200;flt.Q.value=1;
+    const mg=a.createGain();mg.gain.value=v*.6;
+    const tg=a.createGain();tg.gain.value=v*.5;
+    const env=a.createGain();
+    env.gain.setValueAtTime(0,t);
+    env.gain.linearRampToValueAtTime(1,t+.06);
+    env.gain.setValueAtTime(.8,t+dur-.06);
+    env.gain.linearRampToValueAtTime(0,t+dur);
+    o1.connect(mg);o2.connect(tg);mg.connect(flt);tg.connect(flt);
+    flt.connect(env);env.connect(muBus);
+    o1.start(t);o2.start(t);o1.stop(t+dur+.02);o2.stop(t+dur+.02);
+}
+
+// Timpani hit — sine burst + noise burst
+function timpani(freq,start,vol){
+    const a=audio(),t=start,v=vol||.25;
+    const o=a.createOscillator();o.type='sine';
+    o.frequency.setValueAtTime(freq,t);
+    o.frequency.exponentialRampToValueAtTime(freq*.7,t+.4);
+    const env=a.createGain();
+    env.gain.setValueAtTime(v,t);
+    env.gain.exponentialRampToValueAtTime(.001,t+.6);
+    o.connect(env);env.connect(muBus);o.start(t);o.stop(t+.65);
+    // attack transient
+    const s=a.createBufferSource();s.buffer=noise(.06,p=>Math.pow(1-p,6));
+    const lp=a.createBiquadFilter();lp.type='lowpass';lp.frequency.value=300;
+    const ng=a.createGain();ng.gain.setValueAtTime(v*.4,t);
+    s.connect(lp);lp.connect(ng);ng.connect(muBus);s.start(t);
+}
+
+// Cellos/Bass — triangle with subtle warmth
+function bass(freq,start,dur,vol){
+    const a=audio(),t=start,v=vol||.14;
+    const o=a.createOscillator();o.type='triangle';o.frequency.value=freq;
+    const o2=a.createOscillator();o2.type='sine';o2.frequency.value=freq;
+    const flt=a.createBiquadFilter();flt.type='lowpass';flt.frequency.value=600;
+    const mg=a.createGain();mg.gain.value=v*.7;
+    const sg=a.createGain();sg.gain.value=v*.5;
+    const env=a.createGain();
+    env.gain.setValueAtTime(0,t);
+    env.gain.linearRampToValueAtTime(1,t+.05);
+    env.gain.setValueAtTime(.85,t+dur-.05);
+    env.gain.linearRampToValueAtTime(0,t+dur);
+    o.connect(mg);o2.connect(sg);mg.connect(flt);sg.connect(flt);
+    flt.connect(env);env.connect(muBus);
+    o.start(t);o2.start(t);o.stop(t+dur+.02);o2.stop(t+dur+.02);
+}
+
+// Cymbals — noise burst, highpass
+function cymbal(start,vol){
+    const a=audio(),t=start,v=vol||.08;
+    const s=a.createBufferSource();s.buffer=noise(.8,p=>Math.pow(1-p,.6));
+    const hp=a.createBiquadFilter();hp.type='highpass';hp.frequency.value=6000;
+    const env=a.createGain();
+    env.gain.setValueAtTime(v,t);
+    env.gain.exponentialRampToValueAtTime(.001,t+.7);
+    s.connect(hp);hp.connect(env);env.connect(muBus);s.start(t);
+}
+
+let musicOn=false;
+function playMusic(){
+    if(musicOn) return;
+    musicOn=true;
+    const a=audio(),t0=a.currentTime+.15;
+    muBus.gain.cancelScheduledValues(t0);
+    muBus.gain.setValueAtTime(.85,t0);
+
+    const BPM=108;
+    const Q=60/BPM; // quarter note ≈ 0.556s
+
+    // Note frequencies
+    const G2=98,D3=146.83,G3=196,A3=220,B3=246.94,D4=293.66,E4=329.63,Fs4=369.99,G4=392,A4=440,B4=493.88;
+
+    // 义勇军进行曲 melody: [freq, startBeat, durationBeats]
+    const mel=[
+        [D4,0,.45],[D4,.5,.45],[D4,1,.45],
+        [B3,1.5,1.4],[D4,3,.45],
+        [E4,3.5,1.9],
+        [E4,5.5,.45],[D4,6,.4],[B3,6.5,.4],[D4,7,.45],
+        [A3,7.5,2.4],
+        [A3,10,.45],[B3,10.5,.45],
+        [D4,11,.4],[D4,11.5,.4],[D4,12,.4],[E4,12.5,.2],[D4,12.75,.2],
+        [B3,13,1.9],
+        [B3,15,.4],[A3,15.5,.4],[B3,16,.4],[D4,16.5,.45],
+        [G3,17,2.4],
+        [D4,19.5,.45],[D4,20,.45],[D4,20.5,.45],
+        [B3,21,1.4],[D4,22.5,.45],
+        [E4,23,1.9],
+        [E4,25,.45],[D4,25.5,.4],[B3,26,.4],[D4,26.5,.45],
+        [A3,27,1.9],
+        [A3,29,.45],[B3,29.5,.45],
+        [D4,30,.4],[D4,30.5,.4],[E4,31,.4],[D4,31.5,.4],
+        [B3,32,.45],[B3,32.5,.45],
+        [A3,33,.4],[B3,33.5,.4],[D4,34,.45],
+        [G3,34.5,1.4],
+        [D4,36,1.9],
+        [D4,38,1.9],
+        [E4,40,1.9],
+        [G4,42,.9],[Fs4,43,.4],[E4,43.5,.4],[D4,44,.9],
+        [E4,45,.4],[D4,45.5,.4],[E4,46,.9],
+        [A4,47,1.9],
+        [E4,49,.4],[D4,49.5,.4],[E4,50,.9],
+        [A4,51,1.9],
+        [G4,53,1.9],
+        [D4,55,.9],
+        [G4,56,2.9],
+    ];
+
+    // --- Brass: main melody ---
+    mel.forEach(([f,b,d])=>brass(f,t0+b*Q,d*Q));
+
+    // --- Strings: melody doubled up an octave (softer) ---
+    mel.forEach(([f,b,d])=>strings(f*2,t0+b*Q,d*Q,.07));
+
+    // --- Strings: sustained harmony pads ---
+    const pads=[
+        // G major chords and passing harmonies
+        [[G3,B3,D4],0,3.4],
+        [[E4,B3],3.5,2],
+        [[E4,B3,D4],5.5,2],
+        [[A3,E4],7.5,2.4],
+        [[D4,A3],10,3],
+        [[B3,D4],13,2],
+        [[G3,B3,D4],15,4.5],
+        [[G3,B3,D4],19.5,3.4],
+        [[E4,B3],23,2],
+        [[A3,E4,D4],25,2],
+        [[A3,E4],27,2],
+        [[D4,A3,B3],29,3],
+        [[B3,D4],32,2],
+        [[G3,B3,D4],34,2],
+        // 起来 section — big chords
+        [[D4,A3,Fs4],36,2],
+        [[D4,G3,B3],38,2],
+        [[E4,B3,G4],40,2],
+        [[G4,D4,B3],42,3],
+        [[E4,B3,G3],45,2],
+        [[A4,E4],47,2],
+        [[E4,G3,B3],49,2],
+        [[A4,E4,D4],51,2],
+        [[G4,D4,B3],53,2],
+        [[G4,D4,B3,G3],55,4],
+    ];
+    pads.forEach(([notes,b,d])=>{
+        notes.forEach(f=>strings(f,t0+b*Q,d*Q,.045));
+    });
+
+    // --- French horns: counter-melody / sustained notes ---
+    const horns=[
+        [G3,0,3.4,.1],[B3,3.5,2,.08],
+        [A3,7.5,2.4,.08],[D3,10,3,.08],
+        [G3,13,2,.08],[G3,17,2.4,.1],
+        [G3,19.5,3.4,.1],[B3,23,2,.08],
+        [A3,27,2,.08],[D4,30,2,.08],
+        [G3,34.5,1.5,.1],
+        // 起来 — horns swell
+        [D4,36,1.9,.14],[D4,38,1.9,.14],[E4,40,1.9,.15],
+        [D4,42,3,.12],[B3,45,2,.1],
+        [E4,47,2,.12],[B3,49,2,.1],
+        [E4,51,2,.12],[D4,53,2,.12],
+        [D4,55,.9,.12],[B3,56,2.9,.14],
+    ];
+    horns.forEach(([f,b,d,v])=>horn(f,t0+b*Q,d*Q,v));
+
+    // --- Bass (cellos/contrabass) on chord roots ---
+    const bassLine=[
+        [G2,0,3.4],[G2,3.5,2],[A3*.5,7.5,2.4],[D3,10,3],
+        [G2,13,2],[G2,15,2],[G2,17,2.4],
+        [G2,19.5,3.4],[G2,23,2],[A3*.5,27,2],[D3,29,3],
+        [G2,32,2],[G2,34.5,1.5],
+        [D3,36,2],[D3,38,2],[E4*.5,40,2],
+        [G2,42,3],[G2,45,2],[A3*.5,47,2],
+        [G2,49,2],[A3*.5,51,2],[G2,53,2],[G2,55,4],
+    ];
+    bassLine.forEach(([f,b,d])=>bass(f,t0+b*Q,d*Q,.12));
+
+    // --- Timpani on strong beats ---
+    const timpHits=[0,3.5,7.5,10,13,17,19.5,23,27,29,34.5,
+        36,38,40,42,45,47,49,51,53,56];
+    timpHits.forEach(b=>timpani(G2,t0+b*Q,.18));
+
+    // --- Cymbal crashes at climactic moments ---
+    [36,40,47,51,56].forEach(b=>cymbal(t0+b*Q,.06));
+
+    // reset flag after anthem ends
+    setTimeout(()=>{musicOn=false;},(59*Q)*1000);
+}
+
+function stopMusic(){
+    if(!muBus) return;
+    musicOn=false;
+    const a=audio(),t=a.currentTime;
+    muBus.gain.cancelScheduledValues(t);
+    muBus.gain.setValueAtTime(muBus.gain.value,t);
+    muBus.gain.linearRampToValueAtTime(0,t+.5);
+}
 
 /* ════════════════════════════════════════════
    F-SHAPE DEFINITION (for shaped bursts)
@@ -534,8 +785,9 @@ function fire(){
     fl.classList.add('on');
     setTimeout(()=>fl.classList.remove('on'),140);
 
-    // click sound
+    // click sound + anthem
     sndClick();
+    playMusic();
 
     // grander fireworks — 6 waves, more shells
     const W=[
